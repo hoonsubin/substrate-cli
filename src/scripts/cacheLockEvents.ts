@@ -2,6 +2,7 @@ import fs from 'fs';
 import EthLockdrop from '../helper';
 import { LockEvent } from '../models/LockEvent';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
+import Web3 from 'web3';
 
 export const loadCache = (jsonDir: string) => {
     try {
@@ -15,13 +16,15 @@ export const loadCache = (jsonDir: string) => {
     }
 };
 
-async function updateLockdropCache(contractAddress: string) {
+async function updateLockdropCache(web3: Web3, contractAddress: string) {
+    // cache names are based on contract address
     const cacheFileDir = `cache/cache-${contractAddress.slice(0, 6)}.json`;
 
+    // load cache or an empty array
     const _prevLocks = loadCache(cacheFileDir);
 
     console.log('Starting fetch');
-    const newEv = await EthLockdrop.getAllLockEvents(contractAddress, _prevLocks);
+    const newEv = await EthLockdrop.getAllLockEvents(web3, contractAddress, _prevLocks);
 
     const jsonBlob = JSON.stringify(newEv);
 
@@ -32,17 +35,26 @@ async function updateLockdropCache(contractAddress: string) {
     });
 }
 
-async function updateAllContracts() {
-    const allMainContracts = [...firstLockContract, ...secondLockContract].map((i) => {
+async function updateAllContracts(web3: Web3) {
+    const chainName = await web3.eth.net.getNetworkType();
+    const _contracts = [...firstLockContract, ...secondLockContract].filter((i) => {
+        return i.type === chainName;
+    });
+
+    if (!Array.isArray(_contracts) || _contracts.length === 0) {
+        throw new Error('Could not find any contract address!');
+    }
+
+    const contractAddresses = _contracts.map((i) => {
         return i.address;
     });
 
-    for (let i = 0; i < allMainContracts.length; i++) {
+    for (let i = 0; i < contractAddresses.length; i++) {
         try {
-            await updateLockdropCache(allMainContracts[i]);
+            await updateLockdropCache(web3, contractAddresses[i]);
         } catch (e) {
             console.error(e.message);
-            console.log('Encountered error, skipping ' + allMainContracts[i]);
+            console.log('Encountered error, skipping ' + contractAddresses[i]);
             continue;
         }
     }
@@ -50,8 +62,9 @@ async function updateAllContracts() {
 
 // script entry point
 (async () => {
+    const web3 = new Web3(EthLockdrop.infuraHttpProvider('mainnet'));
     //todo: change function depending on the script parameter
-    await updateAllContracts();
+    await updateAllContracts(web3);
 })().catch((err) => {
     console.log(err);
 });
