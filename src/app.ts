@@ -18,7 +18,7 @@ import { firstLockContract, secondLockContract } from './data/lockdropContracts'
     });
 
     app.listen(port, () => {
-        return console.log(`server is listening on ${port}`);
+        return console.log(`server is listening on http://localhost:${port}`);
     }).on('error', (e) => {
         return console.error(e);
     });
