@@ -62,7 +62,9 @@ async function updateAllContracts(web3: Web3) {
 
 // script entry point
 (async () => {
-    const web3 = new Web3(EthLockdrop.infuraHttpProvider('mainnet'));
+    const networkType = process.argv[2].match('mainnet') ? 'mainnet' : 'ropsten';
+
+    const web3 = new Web3(EthLockdrop.infuraHttpProvider(networkType));
     //todo: change function depending on the script parameter
     await updateAllContracts(web3);
 })().catch((err) => {

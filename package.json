@@ -6,7 +6,8 @@
     "scripts": {
         "start": "ts-node -r dotenv/config src/app.ts",
         "test": "echo \"Error: no test specified\" && exit 1",
-        "fetch:eth": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts"
+        "fetch:eth-test": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts ropsten",
+        "fetch:eth-main": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts mainnet"
     },
     "license": "MIT",
     "devDependencies": {
