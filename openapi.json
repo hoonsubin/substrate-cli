@@ -1,0 +1,190 @@
+{
+    "openapi": "3.0.0",
+    "servers": [
+        {
+            "url": "https://cache.plasmnet.io/v1/lockdrop"
+        }
+    ],
+    "info": {
+        "description": "A cache store for the Lockdrop web application, the ultimate dapp",
+        "version": "1.0.0",
+        "title": "Lockdrop Chain Event Cache",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "email": "dev@stake.co.jp"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        }
+    },
+    "tags": [
+        {
+            "name": "eth",
+            "description": "Everything about the Ethereum lockdrop contract events"
+        }
+    ],
+    "paths": {
+        "/eth/{contract}": {
+            "get": {
+                "tags": ["eth"],
+                "summary": "Returns a Lock event from the Ethereum main network",
+                "description": "",
+                "operationId": "getEthLocks",
+                "parameters": [
+                    {
+                        "name": "contract",
+                        "in": "path",
+                        "description": "lockdrop contract address",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        }
+                    },
+                    {
+                        "name": "sender",
+                        "in": "query",
+                        "description": "Lock events made by the given address",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        }
+                    },
+                    {
+                        "name": "introducer",
+                        "in": "query",
+                        "description": "Lock event with the given introducer",
+                        "required": false,
+                        "schema": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        }
+                    },
+                    {
+                        "name": "fromBlock",
+                        "in": "query",
+                        "description": "Events that starts from the given block number. Default is genesis",
+                        "required": false,
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "name": "toBlock",
+                        "in": "query",
+                        "description": "Events that is below the given block number. Default is latest",
+                        "required": false,
+                        "schema": {
+                            "type": "number"
+                        }
+                    },
+                    {
+                        "name": "items",
+                        "in": "query",
+                        "description": "How many entries should be displayed at max. Default will view all",
+                        "required": false,
+                        "schema": {
+                            "type": "number"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/EthLockEvent"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Cannot find event with the given parameter"
+                    }
+                }
+            }
+        },
+        "/eth/{contract}/total-val": {
+            "get": {
+                "tags": ["eth"],
+                "summary": "Returns the total lock value in Wei",
+                "description": "",
+                "operationId": "getEthLockVal",
+                "parameters": [
+                    {
+                        "name": "contract",
+                        "in": "path",
+                        "description": "lockdrop contract address",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "EthLockEvent": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "eth": {
+                            "type": "string",
+                            "format": "int64"
+                        },
+                        "duration": {
+                            "type": "number",
+                            "format": "integer"
+                        },
+                        "lock": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        },
+                        "introducer": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        },
+                        "blockNo": {
+                            "type": "number",
+                            "format": "integer"
+                        },
+                        "timestamp": {
+                            "type": "number",
+                            "format": "integer"
+                        },
+                        "lockOwner": {
+                            "type": "string",
+                            "format": "EthAddress"
+                        },
+                        "transactionHash": {
+                            "type": "string",
+                            "format": "Hash"
+                        }
+                    }
+                }
+            }
+        },
+        "links": {},
+        "callbacks": {}
+    },
+    "security": []
+}
