@@ -1,30 +1,33 @@
 import { EtherScanApi } from '../models/EtherScanTypes';
 import _ from 'lodash';
 import { LockEvent } from '../models/LockEvent';
-import BigNumber from 'bignumber.js';
 import Web3Utils from 'web3-utils';
-import { AbiCoder } from 'web3-eth-abi';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
+import fetch from 'node-fetch';
+import Web3 from 'web3';
 
+// we import with the require method due to an error with the lib
+const Web3EthAbi = require('web3-eth-abi');
+
+const INFURA_PROVIDER = 'https://mainnet.infura.io/v3/' + process.env.INFURA_PROJ_ID;
+
+/**
+ * a wrapper for node-fetch. Returns the JSON body of the response as string.
+ * The body must be a JSON in order for this to work
+ * @param url url of the request in string
+ */
+const fetchJsonData = async (url: string) => {
+    const response = await fetch(url);
+    const json = await response.json();
+    return JSON.stringify(json);
+};
+
+/**
+ * wait for the given time. A utility tool used to prevent API spamming
+ * @param ms
+ */
 function wait(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function fetchTransaction(transactionHash: string, ropsten?: boolean) {
-    const networkToken = ropsten ? 'api-ropsten' : 'api';
-    const api = `https://${networkToken}.etherscan.io/api?module=account&action=txlistinternal&txhash=${transactionHash}&apikey=YourApiKeyToken`;
-
-    // delay for 3 seconds to prevent IP ban
-    await wait(3000);
-    const res = await (await fetch(api)).text();
-    const logs: EtherScanApi.TransactionResponse = JSON.parse(res);
-
-    if (logs.status === '0') {
-        throw new Error(logs.message);
-    }
-
-    // returns an array, but there will only be one entry
-    return logs.result;
 }
 
 /**
@@ -40,12 +43,16 @@ export async function fetchLockdropEvents(
     toBlock: number | 'latest' | 'pending' | 'earliest' | 'genesis' = 'latest',
     ropsten?: boolean,
 ) {
+    if (!Web3Utils.isAddress(contractAddress)) {
+        throw new Error(`${contractAddress} is not a valid ethereum address`);
+    }
+
     const networkToken = ropsten ? 'api-ropsten' : 'api';
     const api = `https://${networkToken}.etherscan.io/api?module=logs&action=getLogs&fromBlock=${fromBlock}&toBlock=${toBlock}&address=${contractAddress}&apikey=YourApiKeyToken`;
 
     // delay for 3 seconds to prevent IP ban
     await wait(3000);
-    const res = await (await fetch(api)).text();
+    const res = await fetchJsonData(api);
     const logs: EtherScanApi.LogResponse = JSON.parse(res);
 
     if (logs.status === '0') {
@@ -79,20 +86,20 @@ export async function fetchLockdropEvents(
         },
     ];
 
-    const lockEvents = logs.result.map(async (event) => {
-        const abiDecoder = new AbiCoder();
-        const decoded = abiDecoder.decodeLog(lockdropAbiInputs, event.data, event.topics);
-        const senderTx = (await fetchTransaction(event.transactionHash, ropsten))[0];
+    const web3 = new Web3(INFURA_PROVIDER);
 
-        //console.log(new BigNumber(senderTx.value));
+    const lockEvents = logs.result.map(async (event) => {
+        const decoded = Web3EthAbi.decodeLog(lockdropAbiInputs, event.data, event.topics);
+        const senderTx = await web3.eth.getTransaction(event.transactionHash);
+        //const senderTx = (await fetchTransaction(event.transactionHash, ropsten))[0];
 
         const ev = {
-            eth: new BigNumber(senderTx.value),
+            eth: senderTx.value,
             duration: Web3Utils.hexToNumber(event.topics[2]),
             lock: decoded['lock'],
             introducer: decoded['introducer'],
             blockNo: Web3Utils.hexToNumber(event.blockNumber),
-            timestamp: Web3Utils.hexToNumber(event.timeStamp).toFixed(),
+            timestamp: Web3Utils.hexToNumber(event.timeStamp),
             lockOwner: senderTx.from,
             transactionHash: event.transactionHash,
         } as LockEvent;
@@ -102,14 +109,13 @@ export async function fetchLockdropEvents(
     return Promise.all(lockEvents);
 }
 
+/**
+ * gets the ethereum network type of the lockdrop smart contract based on the address.
+ * @param contractAddr smart contract address
+ */
 export function contractToNetwork(contractAddr: string) {
     const allContracts = [...firstLockContract, ...secondLockContract];
     const network = allContracts.find((i) => i.address === contractAddr).type;
-
-    // if the result is falsy
-    if (!!network) {
-        throw new Error('Could not find address ' + contractAddr);
-    }
     return network;
 }
 
@@ -128,22 +134,26 @@ export function getHighestBlockNo(lockEvents: LockEvent[]) {
 
 /**
  * returns an array of locked events for the lock contract from the latest event block number.
- * This function will return the full list (i.e. previous events + new events) and handle caching as well
- * @param web3 a web3.js instance to interact with the blockchain
- * @param instance a contract instance to parse the contract events
+ * This function will return the full list (i.e. previous events + new events)
+ * @param contract the contract address with the lock events
+ * @param prevEvents previous event lists loaded from the cache
  */
 export async function getAllLockEvents(contract: string, prevEvents?: LockEvent[]): Promise<LockEvent[]> {
     // set the correct block number either based on the create block or the latest event block
-    const mainnetStartBlock =
-        prevEvents.length === 0 || !Array.isArray(prevEvents)
-            ? [...firstLockContract, ...secondLockContract].find(
-                  (i) => i.address.toLowerCase() === contract.toLowerCase(),
-              )?.blockHeight
-            : getHighestBlockNo(prevEvents);
+    let startBlock = [...firstLockContract, ...secondLockContract].find(
+        (i) => i.address.toLowerCase() === contract.toLowerCase(),
+    )?.blockHeight;
+
+    if (prevEvents.length > 0 && Array.isArray(prevEvents)) {
+        startBlock = getHighestBlockNo(prevEvents);
+        console.log('Found existing cache, starting from block number ' + startBlock);
+    } else {
+        console.log('No cache found, starting from block number ' + startBlock);
+    }
 
     const isDusty = contractToNetwork(contract) === 'ropsten';
 
-    const newEvents = await fetchLockdropEvents(contract, mainnetStartBlock, 'latest', isDusty);
+    const newEvents = await fetchLockdropEvents(contract, startBlock, 'latest', isDusty);
 
     if (newEvents.length < 2) return prevEvents;
 

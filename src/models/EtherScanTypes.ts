@@ -37,6 +37,6 @@ export declare namespace EtherScanApi {
     export interface TransactionResponse {
         status: string;
         message: string;
-        result: Transaction[];
+        result: Transaction;
     }
 }
