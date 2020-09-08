@@ -1,5 +1,4 @@
 import { LockdropContract } from '../models/LockEvent';
-import Lockdrop from '../contracts/Lockdrop.json';
 
 export const firstLockContract: LockdropContract[] = [
     {
@@ -8,7 +7,6 @@ export const firstLockContract: LockdropContract[] = [
         blockHeight: 9662816,
     },
     { type: 'ropsten', address: '0xEEd84A89675342fB04faFE06F7BB176fE35Cb168', blockHeight: 7941301 },
-    { type: 'private', address: Lockdrop.networks[5777].address, blockHeight: 0 },
 ];
 
 export const secondLockContract: LockdropContract[] = [
@@ -27,5 +25,4 @@ export const secondLockContract: LockdropContract[] = [
         address: '0xa91E04a6ECF202A7628e0c9191676407015F5AF9',
         blockHeight: 8474518,
     },
-    { type: 'private', address: Lockdrop.networks[5777].address, blockHeight: 0 },
 ];

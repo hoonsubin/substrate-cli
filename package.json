@@ -6,7 +6,7 @@
     "scripts": {
         "start": "ts-node -r dotenv/config src/app.ts",
         "test": "echo \"Error: no test specified\" && exit 1",
-        "fetch:eth": "ts-node -r dotenv/config src/utils/cacheLockEvents.ts"
+        "fetch:eth": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts"
     },
     "license": "MIT",
     "devDependencies": {
@@ -14,10 +14,10 @@
         "@types/express": "^4.17.6",
         "@types/lodash": "^4.14.161",
         "@types/node-fetch": "^2.5.7",
+        "dotenv": "^8.2.0",
         "prettier": "^2.0.5",
         "ts-node": "^8.6.2",
         "tslint": "^6.1.2",
-        "dotenv": "^8.2.0",
         "typescript": "^3.9.5"
     },
     "dependencies": {

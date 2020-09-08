@@ -5,11 +5,10 @@ import Web3Utils from 'web3-utils';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
 import fetch from 'node-fetch';
 import Web3 from 'web3';
+import ContractAbi from '../contracts/Lockdrop.json';
 
 // we import with the require method due to an error with the lib
 const Web3EthAbi = require('web3-eth-abi');
-
-const INFURA_PROVIDER = 'https://mainnet.infura.io/v3/' + process.env.INFURA_PROJ_ID;
 
 /**
  * a wrapper for node-fetch. Returns the JSON body of the response as string.
@@ -50,8 +49,8 @@ export async function fetchLockdropEvents(
     const networkToken = ropsten ? 'api-ropsten' : 'api';
     const api = `https://${networkToken}.etherscan.io/api?module=logs&action=getLogs&fromBlock=${fromBlock}&toBlock=${toBlock}&address=${contractAddress}&apikey=YourApiKeyToken`;
 
-    // delay for 3 seconds to prevent IP ban
-    await wait(3000);
+    // delay for 4 seconds to prevent IP ban
+    await wait(4000);
     const res = await fetchJsonData(api);
     const logs: EtherScanApi.LogResponse = JSON.parse(res);
 
@@ -59,32 +58,11 @@ export async function fetchLockdropEvents(
         throw new Error(logs.message);
     }
 
-    const lockdropAbiInputs = [
-        {
-            indexed: true,
-            internalType: 'uint256',
-            name: 'eth',
-            type: 'uint256',
-        },
-        {
-            indexed: true,
-            internalType: 'uint256',
-            name: 'duration',
-            type: 'uint256',
-        },
-        {
-            indexed: false,
-            internalType: 'address',
-            name: 'lock',
-            type: 'address',
-        },
-        {
-            indexed: false,
-            internalType: 'address',
-            name: 'introducer',
-            type: 'address',
-        },
-    ];
+    //const a = ContractAbi.abi.find((i) => i.name === 'Locked').inputs;
+
+    const lockdropAbiInputs = ContractAbi.abi.find((i) => i.name === 'Locked').inputs;
+
+    const INFURA_PROVIDER = `https://${ropsten ? 'ropsten' : 'mainnet'}.infura.io/v3/${process.env.INFURA_PROJ_ID}`;
 
     const web3 = new Web3(INFURA_PROVIDER);
 
@@ -134,15 +112,18 @@ export function getHighestBlockNo(lockEvents: LockEvent[]) {
 
 /**
  * returns an array of locked events for the lock contract from the latest event block number.
- * This function will return the full list (i.e. previous events + new events)
+ * This function will return the full list (i.e. previous events + new events).
+ * Ethereum chain ID will be automatically detected.
  * @param contract the contract address with the lock events
  * @param prevEvents previous event lists loaded from the cache
  */
 export async function getAllLockEvents(contract: string, prevEvents?: LockEvent[]): Promise<LockEvent[]> {
     // set the correct block number either based on the create block or the latest event block
-    let startBlock = [...firstLockContract, ...secondLockContract].find(
+    const { blockHeight, type } = [...firstLockContract, ...secondLockContract].find(
         (i) => i.address.toLowerCase() === contract.toLowerCase(),
-    )?.blockHeight;
+    );
+
+    let startBlock = blockHeight;
 
     if (prevEvents.length > 0 && Array.isArray(prevEvents)) {
         startBlock = getHighestBlockNo(prevEvents);
@@ -151,15 +132,19 @@ export async function getAllLockEvents(contract: string, prevEvents?: LockEvent[
         console.log('No cache found, starting from block number ' + startBlock);
     }
 
-    const isDusty = contractToNetwork(contract) === 'ropsten';
+    const isTestnet = type === 'ropsten';
 
-    const newEvents = await fetchLockdropEvents(contract, startBlock, 'latest', isDusty);
+    const newEvents = await fetchLockdropEvents(contract, startBlock, 'latest', isTestnet);
 
-    if (newEvents.length < 2) return prevEvents;
+    // checking the same block will always return at least 1 event
+    if (newEvents.length < 2) {
+        console.log('No new events found, skipping...');
+        return prevEvents;
+    }
 
     const allEvents = [...prevEvents, ...newEvents];
 
-    // filter objects so that the list only contains unique transaction hashes
+    // filter objects so that the list only contains unique lock address
     const uniqueEvents = _.uniqBy(allEvents, (i) => {
         return i.lock;
     });

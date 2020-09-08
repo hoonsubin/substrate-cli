@@ -12,7 +12,7 @@ export interface LockEvent {
 }
 
 export interface LockdropContract {
-    type: 'main' | 'ropsten' | 'private';
+    type: 'main' | 'ropsten';
     address: string;
     blockHeight: number;
 }
