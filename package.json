@@ -7,7 +7,9 @@
         "start": "ts-node -r dotenv/config src/app.ts",
         "test": "echo \"Error: no test specified\" && exit 1",
         "fetch:eth-test": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts ropsten",
-        "fetch:eth-main": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts mainnet"
+        "fetch:eth-main": "ts-node -r dotenv/config src/scripts/cacheLockEvents.ts mainnet",
+        "fetch:claims": "ts-node -r dotenv/config src/scripts/cacheClaimEvents.ts",
+        "fetch:all": "yarn run fetch:eth-test && yarn run fetch:eth-main && yarn run fetch:claims"
     },
     "license": "MIT",
     "devDependencies": {
@@ -23,8 +25,6 @@
     },
     "dependencies": {
         "bignumber.js": "^9.0.0",
-        "bitcoinjs-lib": "^5.1.10",
-        "bitcore-lib": "https://github.com/staketechnologies/bitcore.git",
         "express": "^4.17.1",
         "lodash": "^4.17.20",
         "node-fetch": "^2.6.1",

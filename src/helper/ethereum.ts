@@ -3,34 +3,16 @@ import _ from 'lodash';
 import { LockEvent } from '../models/LockEvent';
 import Web3Utils from 'web3-utils';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
-import fetch from 'node-fetch';
+
 import Web3 from 'web3';
 import ContractAbi from '../contracts/Lockdrop.json';
+import { getJsonRequest, wait } from './utils';
 
 // we import with the require method due to an error with the lib
 const Web3EthAbi = require('web3-eth-abi');
 
 export const infuraHttpProvider = (network: 'ropsten' | 'mainnet') =>
     `https://${network}.infura.io/v3/${process.env.INFURA_PROJ_ID}`;
-
-/**
- * a wrapper for node-fetch. Returns the JSON body of the response as string.
- * The body must be a JSON in order for this to work
- * @param url url of the request in string
- */
-const fetchJsonData = async (url: string) => {
-    const response = await fetch(url);
-    const json = await response.json();
-    return JSON.stringify(json);
-};
-
-/**
- * wait for the given time. A utility tool used to prevent API spamming
- * @param ms
- */
-function wait(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 function createContractInstance(web3: Web3, contractAddress: string) {
     const lockdropAbi = ContractAbi.abi as Web3Utils.AbiItem[];
@@ -64,7 +46,7 @@ export async function fetchLockdropEventsEtherscan(
     // delay for 4 seconds to prevent IP ban
     await wait(4000);
     // todo: if fetch returns an error, try using web3
-    const res = await fetchJsonData(api);
+    const res = await getJsonRequest(api);
     const logs: EtherScanApi.LogResponse = JSON.parse(res);
 
     if (logs.status === '0') {
@@ -200,14 +182,8 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
     try {
         newEvents = await fetchLockdropEventsEtherscan(contract, web3, startBlock, 'latest', isTestnet);
     } catch (e) {
-        console.log(`Got error ${e.message}, trying a different method`);
+        console.log(`Got error ${e.message} from Etherscan\nUsing Infura instead...`);
         newEvents = await fetchLockdropEventsWeb3(contract, web3, startBlock, 'latest');
-    }
-
-    // checking the same block will always return at least 1 event
-    if (newEvents.length < 2) {
-        console.log('No new events found, skipping...');
-        return prevEvents;
     }
 
     const allEvents = [...prevEvents, ...newEvents];
@@ -220,6 +196,10 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
     const sortedList = _.sortBy(uniqueEvents, (e) => {
         return e.blockNo;
     });
+
+    if (prevEvents.length === sortedList.length) {
+        console.log('No new events found');
+    }
 
     return sortedList;
 }
