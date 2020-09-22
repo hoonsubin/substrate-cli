@@ -1,3 +1,5 @@
 import * as EthLockdrop from './ethereum';
+import * as PlasmSubscan from './plasmSubscan';
+import * as Utils from './utils';
 
-export default EthLockdrop;
+export { EthLockdrop, PlasmSubscan, Utils };
