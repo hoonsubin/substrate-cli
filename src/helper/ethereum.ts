@@ -186,12 +186,6 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
         newEvents = await fetchLockdropEventsWeb3(contract, web3, startBlock, 'latest');
     }
 
-    // checking the same block will always return at least 1 event
-    if (newEvents.length < 2) {
-        console.log('No new events found, skipping...');
-        return prevEvents;
-    }
-
     const allEvents = [...prevEvents, ...newEvents];
 
     // filter objects so that the list only contains unique lock address
@@ -202,6 +196,10 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
     const sortedList = _.sortBy(uniqueEvents, (e) => {
         return e.blockNo;
     });
+
+    if (prevEvents.length === sortedList.length) {
+        console.log('No new events found');
+    }
 
     return sortedList;
 }
