@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { LockEvent } from '../models/LockEvent';
+import { LockEvent } from '../models/EventTypes';
 import fs from 'fs';
 
 /**

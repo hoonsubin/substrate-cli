@@ -1,6 +1,6 @@
 import { EtherScanApi } from '../models/EtherScanTypes';
 import _ from 'lodash';
-import { LockEvent } from '../models/LockEvent';
+import { LockEvent } from '../models/EventTypes';
 import Web3Utils from 'web3-utils';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
 
@@ -178,6 +178,7 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
 
     const isTestnet = (await web3.eth.net.getNetworkType()) === 'ropsten';
 
+    // fetch new events starting from the highest block number in the cache
     let newEvents: LockEvent[];
     try {
         newEvents = await fetchLockdropEventsEtherscan(contract, web3, startBlock, 'latest', isTestnet);
