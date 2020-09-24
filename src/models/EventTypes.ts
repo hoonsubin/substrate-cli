@@ -46,6 +46,8 @@ export interface Lockdrop {
 
 export interface Claim {
     params: Lockdrop;
+    timestamp?: number;
+    blockNumber?: number;
     approve: BTreeSet<AuthorityId>;
     decline: BTreeSet<AuthorityId>;
     amount: u128; // u128

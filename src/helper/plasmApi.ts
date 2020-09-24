@@ -1,22 +1,23 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import BigNumber from 'bignumber.js';
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import { Hash, H256 } from '@polkadot/types/interfaces';
+import { Hash, H256, BlockNumber } from '@polkadot/types/interfaces';
 import * as polkadotUtilCrypto from '@polkadot/util-crypto';
-import { Struct } from '@polkadot/types';
+import * as polkadotUtils from '@polkadot/util';
 import * as plasmDefinitions from '@plasm/types/interfaces/definitions';
-import { Claim } from '../models/EventTypes';
+import { Claim, Lockdrop } from '../models/EventTypes';
 // it is not good to import a type from a function script
 // todo: refactor this to have a dedicated types folder
-import { femtoToPlm, NodeEndpoint } from './plasmUtils';
+import { createLockParam, femtoToPlm, NodeEndpoint } from './plasmUtils';
 
-export class PlasmApi {
+export default class PlasmConnect {
     constructor(public network: NodeEndpoint) {
         this._apiInst = this.createPlasmInstance(network);
-        this.inst = this._apiInst;
     }
 
-    public inst: Promise<ApiPromise>;
+    public get api() {
+        return this._apiInst;
+    }
 
     private _apiInst: Promise<ApiPromise>;
 
@@ -56,8 +57,6 @@ export class PlasmApi {
         return await api.isReady;
     }
 
-    public async lockdrop() {}
-
     /**
      * sends the unclaimed lockdrop reward to the given plasm address.
      * the signature must derive from the public key that made the lock.
@@ -65,7 +64,7 @@ export class PlasmApi {
      * @param recipient plasm address in decoded form
      * @param signature hex string without the 0x for the ECDSA signature from the user
      */
-    public async claimTo(claimId: Uint8Array, recipient: Uint8Array | string, signature: Uint8Array) {
+    public async claimTo(claimId: Uint8Array | H256, recipient: Uint8Array | string, signature: Uint8Array) {
         const api = await this._apiInst;
         const encodedAddr = recipient instanceof Uint8Array ? polkadotUtilCrypto.encodeAddress(recipient) : recipient;
         const addrCheck = polkadotUtilCrypto.checkAddress(encodedAddr, 5);
@@ -86,13 +85,21 @@ export class PlasmApi {
      * @param lockParam lockdrop parameter that contains the lock data
      * @param nonce nonce for PoW authentication with the node
      */
-    public async sendLockClaimRequest(lockParam: Struct, nonce: Uint8Array): Promise<Hash> {
+    public async sendLockClaimRequest(lockParam: Lockdrop, nonce: Uint8Array): Promise<Hash> {
         const api = await this._apiInst;
         if (typeof api.tx.plasmLockdrop === 'undefined') {
             throw new Error('Plasm node cannot find lockdrop module');
         }
 
-        const claimRequestTx = api.tx.plasmLockdrop.request(lockParam.toU8a(), nonce);
+        const claimParam = createLockParam(
+            lockParam.type,
+            lockParam.transactionHash.toHex(),
+            polkadotUtils.u8aToHex(lockParam.publicKey),
+            lockParam.duration.toString(),
+            lockParam.value.toString(10),
+        );
+
+        const claimRequestTx = api.tx.plasmLockdrop.request(claimParam.toU8a(), nonce);
 
         const txHash = await claimRequestTx.send();
 
@@ -122,6 +129,17 @@ export class PlasmApi {
     }
 
     /**
+     * Maps the given block number into hash
+     * @param blockNumber
+     */
+    public async blockNoToHash(blockNumber: number) {
+        const api = await this._apiInst;
+
+        const blockHash = await api.rpc.chain.getBlockHash(blockNumber);
+        return blockHash;
+    }
+
+    /**
      * Fetches Plasm real-time lockdrop vote threshold and positive vote values
      */
     public async getLockdropVoteRequirements() {
@@ -135,6 +153,14 @@ export class PlasmApi {
             voteThreshold: _voteThreshold,
             positiveVotes: _positiveVotes,
         };
+    }
+
+    public async getLockdropDuration() {
+        const api = await this._apiInst;
+
+        const lockdropBounds = await api.query.plasmLockdrop.lockdropBounds();
+
+        return (lockdropBounds as unknown) as [BlockNumber, BlockNumber];
     }
 
     /**
@@ -159,7 +185,7 @@ export class PlasmApi {
      * @param api Polkadot-js API instance
      * @param claimId real-time lockdrop claim ID
      */
-    public async getClaimStatus(claimId: Uint8Array | H256) {
+    public async getClaimData(claimId: Uint8Array | H256): Promise<Claim | null> {
         const api = await this._apiInst;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const claim = (await api.query.plasmLockdrop.claims(claimId)) as any;
@@ -187,7 +213,7 @@ export class PlasmApi {
                 value.toHex() === '0x000000000000000000000000000000000000000000000000000000000000000000' || // pub key
                 value.toHex() === '0x0000000000000000000000000000000000000000000000000000000000000000' // tx hash
             ) {
-                return undefined;
+                return null;
             }
         }
 

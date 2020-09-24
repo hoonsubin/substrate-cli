@@ -31,14 +31,14 @@ export function wait(ms: number) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export const loadCache = (jsonDir: string) => {
+export function loadCache<T>(jsonDir: string) {
     try {
         const _cache = fs.readFileSync(jsonDir, { encoding: 'utf8' });
         const cache = JSON.parse(_cache);
 
-        const _prevLocks: LockEvent[] = cache;
+        const _prevLocks: Array<T> = cache;
         return _prevLocks;
     } catch (e) {
-        return [] as LockEvent[];
+        return new Array<T>();
     }
-};
+}
