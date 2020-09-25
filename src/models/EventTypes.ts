@@ -32,6 +32,12 @@ export enum LockdropType {
     Ethereum,
 }
 
+export interface ClaimReq {
+    claimId: string;
+    blockNumber: number;
+    timestamp: number;
+}
+
 /**
  * used for real-time lockdrop parameter
  * this data is used to communicate with Substrate
@@ -46,8 +52,9 @@ export interface Lockdrop {
 
 export interface Claim {
     params: Lockdrop;
-    timestamp?: number;
-    blockNumber?: number;
+    timestamp: number; // epoch seconds
+    blockNumber: number;
+    claimId: string;
     approve: BTreeSet<AuthorityId>;
     decline: BTreeSet<AuthorityId>;
     amount: u128; // u128

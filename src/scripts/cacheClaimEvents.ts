@@ -1,54 +1,56 @@
 import { PlasmSubscan, Utils, PlasmUtils } from '../helper';
 import fs from 'fs';
 import PlasmConnect from '../helper/plasmApi';
-import { SubscanApi } from '../models/SubscanTypes';
+import { Claim } from '../models/EventTypes';
 import * as polkadotUtils from '@polkadot/util';
 
-const plasmApi = new PlasmConnect('Main');
+const network: PlasmUtils.NodeEndpoint = 'Main';
+const plasmApi = new PlasmConnect(network);
 
-const claimAllHangingReq = async (eventData: SubscanApi.ClaimReqEvent[]) => {
-    const { voteThreshold, positiveVotes } = await plasmApi.getLockdropVoteRequirements();
-
-    const claimData = await Promise.all(
-        eventData.map(async (i) => {
-            const claimData = await plasmApi.getClaimData(polkadotUtils.hexToU8a(i.claimId));
-
-            return claimData;
+async function claimAllHangingReq(hangingClaims: Claim[]) {
+    const res = await Promise.all(
+        hangingClaims.map(async (i) => {
+            const claimNonce = PlasmUtils.claimPowNonce(polkadotUtils.hexToU8a(i.claimId));
+            const hash = await plasmApi.sendLockClaimRequest(i.params, claimNonce);
+            return {
+                hash,
+                claimId: i.claimId,
+            };
         }),
     );
 
-    claimData.forEach(async (i, index) => {
-        const isClaimHanging =
-            (!i.complete && i.approve.size - i.decline.size < voteThreshold) || i.approve.size < positiveVotes;
-
-        if (isClaimHanging) {
-            const claimId = eventData[index].claimId;
-            const claimPoWNonce = PlasmUtils.claimIdToNonceString(claimId);
-            const hash = await plasmApi.sendLockClaimRequest(i.params, polkadotUtils.hexToU8a(claimPoWNonce));
-            console.log(`Send claim request for ${claimId} with extrinsic hash of ${hash.toHex()}`);
-        }
+    res.forEach((i) => {
+        console.log(`Sent claim request for ${i.claimId} with the hash ${i.hash.toHex()}`);
     });
-};
+}
 
 // script entry point
 (async () => {
-    // const cacheDir = 'cache/claim-request-event.json';
-    // const cachedEvents = Utils.loadCache<SubscanApi.ClaimReqEvent>(cacheDir);
-    // console.log('Fetching claim events...');
-    // const allEvents = await PlasmSubscan.fetchPlasmEvents('plasmlockdrop', 'claimrequest', 100, cachedEvents);
+    await plasmApi.start();
+    const cacheDir = `cache/${network}-claim-events.json`;
 
-    await PlasmSubscan.fetchClaimRequestCall(plasmApi);
+    const cachedEvents = Utils.loadCache<Claim>(cacheDir);
 
-    // const unclaimed = await PlasmSubscan.filterClaimed(plasmApi, allEvents);
+    const data = (await PlasmSubscan.fetchAllClaimData(plasmApi, cachedEvents)).filter((i) => {
+        return !i.complete;
+    });
 
-    // //console.log(allEvents);
+    fs.writeFile(cacheDir, JSON.stringify(data), function (err) {
+        if (err) return console.error(err);
+        console.log('Successfully cached new events');
+    });
 
-    // fs.writeFile(cacheDir, JSON.stringify(unclaimed), function (err) {
-    //     if (err) return console.error(err);
-    //     console.log('fetched ' + unclaimed.length + ' unclaimed events');
-    // });
+    const hanging = await PlasmSubscan.findHangingClaims(plasmApi, data);
 
-    // await claimAllHangingReq(plasmApi, unclaimed);
+    if (hanging.length > 0) {
+        console.log(`There are ${hanging.length} hanging claims`);
+
+        fs.writeFile('cache/hanging.json', JSON.stringify(hanging), function (err) {
+            if (err) return console.error(err);
+            console.log('Successfully cached hanged events');
+        });
+        //await claimAllHangingReq(hanging);
+    }
 })()
     .catch((err) => {
         console.error(err);

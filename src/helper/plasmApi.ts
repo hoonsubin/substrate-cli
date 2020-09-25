@@ -1,7 +1,10 @@
 /* eslint-disable @typescript-eslint/camelcase */
 import BigNumber from 'bignumber.js';
 import { ApiPromise, WsProvider } from '@polkadot/api';
-import { Hash, H256, BlockNumber } from '@polkadot/types/interfaces';
+import { Vec } from '@polkadot/types';
+import { Hash, Moment, H256, BlockNumber } from '@polkadot/types/interfaces';
+import { ClaimId, Claim as NodeClaim } from '@plasm/types/interfaces';
+import * as cliProgress from 'cli-progress';
 import * as polkadotUtilCrypto from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
 import * as plasmDefinitions from '@plasm/types/interfaces/definitions';
@@ -9,17 +12,26 @@ import { Claim, Lockdrop } from '../models/EventTypes';
 // it is not good to import a type from a function script
 // todo: refactor this to have a dedicated types folder
 import { createLockParam, femtoToPlm, NodeEndpoint } from './plasmUtils';
+import _ from 'lodash';
 
 export default class PlasmConnect {
     constructor(public network: NodeEndpoint) {
-        this._apiInst = this.createPlasmInstance(network);
+        //this._apiInst = this.createPlasmInstance(network);
     }
 
     public get api() {
         return this._apiInst;
     }
 
-    private _apiInst: Promise<ApiPromise>;
+    private _apiInst: ApiPromise;
+
+    /**
+     * Start the api connection.
+     */
+    public async start() {
+        const api = await this.createPlasmInstance(this.network);
+        this._apiInst = api;
+    }
 
     /**
      * establishes a connection between the client and the plasm node with the given endpoint.
@@ -65,7 +77,7 @@ export default class PlasmConnect {
      * @param signature hex string without the 0x for the ECDSA signature from the user
      */
     public async claimTo(claimId: Uint8Array | H256, recipient: Uint8Array | string, signature: Uint8Array) {
-        const api = await this._apiInst;
+        const api = this._apiInst;
         const encodedAddr = recipient instanceof Uint8Array ? polkadotUtilCrypto.encodeAddress(recipient) : recipient;
         const addrCheck = polkadotUtilCrypto.checkAddress(encodedAddr, 5);
         if (!addrCheck[0]) {
@@ -86,7 +98,7 @@ export default class PlasmConnect {
      * @param nonce nonce for PoW authentication with the node
      */
     public async sendLockClaimRequest(lockParam: Lockdrop, nonce: Uint8Array): Promise<Hash> {
-        const api = await this._apiInst;
+        const api = this._apiInst;
         if (typeof api.tx.plasmLockdrop === 'undefined') {
             throw new Error('Plasm node cannot find lockdrop module');
         }
@@ -112,7 +124,7 @@ export default class PlasmConnect {
      * @param asPlm if the output value should be in PLM. Default denominator is in femto
      */
     public async getAddressBalance(plasmAddress: string | Uint8Array, asPlm?: boolean) {
-        const api = await this._apiInst;
+        const api = this._apiInst;
         const encodedAddr =
             plasmAddress instanceof Uint8Array ? polkadotUtilCrypto.encodeAddress(plasmAddress) : plasmAddress;
         const addrCheck = polkadotUtilCrypto.checkAddress(encodedAddr, 5);
@@ -133,7 +145,7 @@ export default class PlasmConnect {
      * @param blockNumber
      */
     public async blockNoToHash(blockNumber: number) {
-        const api = await this._apiInst;
+        const api = this._apiInst;
 
         const blockHash = await api.rpc.chain.getBlockHash(blockNumber);
         return blockHash;
@@ -143,7 +155,7 @@ export default class PlasmConnect {
      * Fetches Plasm real-time lockdrop vote threshold and positive vote values
      */
     public async getLockdropVoteRequirements() {
-        const api = await this._apiInst;
+        const api = this._apiInst;
         // number of minium votes required for a claim request to be accepted
         const _voteThreshold = Number.parseInt((await api.query.plasmLockdrop.voteThreshold()).toString());
         // number of outstanding votes (approve votes - decline votes) required for a claim request to be accepted
@@ -156,7 +168,7 @@ export default class PlasmConnect {
     }
 
     public async getLockdropDuration() {
-        const api = await this._apiInst;
+        const api = this._apiInst;
 
         const lockdropBounds = await api.query.plasmLockdrop.lockdropBounds();
 
@@ -169,7 +181,7 @@ export default class PlasmConnect {
      * @param claimId real-time lockdrop claim ID
      */
     public async sendLockdropClaim(claimId: Uint8Array | H256) {
-        const api = await this._apiInst;
+        const api = this._apiInst;
 
         const claimRequestTx = api.tx.plasmLockdrop.claim(claimId);
 
@@ -185,11 +197,17 @@ export default class PlasmConnect {
      * @param api Polkadot-js API instance
      * @param claimId real-time lockdrop claim ID
      */
-    public async getClaimData(claimId: Uint8Array | H256): Promise<Claim | null> {
-        const api = await this._apiInst;
+    public async getClaimData(claimId: Uint8Array | H256, blockHash: Hash): Promise<Claim | null> {
+        const api = this._apiInst;
+
+        const blockData = (await api.rpc.chain.getBlock(blockHash)).block;
+        const blockNumber = blockData.header.number.unwrap().toNumber();
+        const timestamp = blockData.extrinsics.find((i) => {
+            return i.method.section === 'timestamp';
+        }).method.args[0] as Moment;
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const claim = (await api.query.plasmLockdrop.claims(claimId)) as any;
-
         // wrap block query data to TypeScript interface
         const data: Claim = {
             params: {
@@ -203,7 +221,10 @@ export default class PlasmConnect {
             approve: claim.get('approve'),
             decline: claim.get('decline'),
             amount: claim.get('amount'),
-            complete: claim.get('complete'),
+            complete: claim.get('complete').valueOf(),
+            blockNumber,
+            timestamp: Math.trunc(timestamp.toNumber() / 1000),
+            claimId: polkadotUtils.u8aToHex(claimId),
         };
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         for (const [_key, value] of Object.entries(data.params)) {
@@ -220,8 +241,116 @@ export default class PlasmConnect {
         return data;
     }
 
+    /**
+     * Fetches all lockdrop reward claim request events from the node.
+     * @param startFrom block number for where
+     */
+    public async fetchClaimRequestCall(startFrom?: number) {
+        const api = this._apiInst;
+        // maximum number of block range the API can cover
+        const maxRequests = 2500;
+
+        // start from the given block number, or at the beginning of the lockdrop
+        const startBlock = startFrom || (await api.query.plasmLockdrop.lockdropBounds())[0].toNumber();
+
+        console.log('Querying the blockchain from block ' + startBlock);
+
+        const lastHdr = (await api.rpc.chain.getHeader()).number.unwrap();
+
+        // expected block time in seconds
+        const blockTime = Math.trunc(api.consts.babe.expectedBlockTime.toNumber() / 1000);
+        // should check claims that are more than 30 minutes old
+        const claimMinAge = 30 * 60;
+
+        const _queryRange = lastHdr.subn(startBlock).toNumber();
+
+        // ensure no negative value is passed
+        const lockdropBlockRange = _queryRange > maxRequests ? _queryRange : maxRequests;
+
+        // number of calls needed to cover all the blocks
+        const pages = Math.round(lockdropBlockRange / maxRequests);
+
+        let blockEventList: {
+            blockHash: Hash;
+            claimIds: Vec<ClaimId>;
+        }[] = [];
+
+        console.log('Fetching ' + pages + ' pages from plasm node...\n');
+
+        const progressBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+        progressBar.start(pages, 0);
+        const blockHdrOffset = Math.trunc(claimMinAge / blockTime);
+
+        for (let i = 1; i <= pages; i++) {
+            // start block number = latest block - offset - current page * blocks per request
+            const startBlockNo = lastHdr.toNumber() - blockHdrOffset - i * maxRequests;
+            // the block offset ensures that we don't go above the latest block
+            const endBlockNo = startBlockNo + maxRequests;
+
+            const startHdr = await api.rpc.chain.getBlockHash(startBlockNo);
+            const endHdr = await api.rpc.chain.getBlockHash(endBlockNo);
+
+            const lockdropEvents = await api.query.plasmLockdrop.requests.range([startHdr, endHdr]);
+
+            const _events = lockdropEvents.filter(([_hash, request]) => {
+                return !request.isEmpty;
+            });
+
+            const reqs = _events.map(([hash, extr]) => {
+                const claimIds = extr as Vec<ClaimId>;
+                return {
+                    blockHash: hash,
+                    claimIds,
+                };
+            });
+            // flip the array to ensure new blocks go first
+            blockEventList = blockEventList.concat(reqs.reverse());
+            progressBar.update(i);
+        }
+        progressBar.stop();
+
+        console.log('Fetching block timestamps...');
+
+        const claimList = blockEventList.map(async ({ blockHash, claimIds }) => {
+            const ids = claimIds.map((i) => {
+                return {
+                    claimId: i.toHex(),
+                    blockHash,
+                };
+            });
+            return ids;
+        });
+
+        const _claims = await Promise.all(claimList);
+
+        // flatten the list
+        const claimEvents = _claims.reduce((accumulator, currentValue) => {
+            return accumulator.concat(currentValue);
+        });
+        const uniqueList = _.uniqBy(claimEvents, (i) => {
+            return i.claimId;
+        });
+
+        console.log(`Fetching claim params...\n`);
+        const claimParamProgBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+        claimParamProgBar.start(uniqueList.length - 1, 0);
+        // add block number to the claim request
+        const newClaimEvents = await Promise.all(
+            uniqueList.map(async (i, index) => {
+                const _claim = await this.getClaimData(polkadotUtils.hexToU8a(i.claimId), i.blockHash);
+                claimParamProgBar.update(index);
+                return {
+                    ..._claim,
+                    ...i,
+                } as Claim;
+            }),
+        );
+        claimParamProgBar.stop();
+        return newClaimEvents;
+    }
+
     public async getLockdropAlpha() {
-        const api = await this._apiInst;
+        const api = this._apiInst;
         const alpha = await api.query.plasmLockdrop.alpha();
         // the queried data will always be a whole number, but the calculated data is between 0 ~ 1.
         // so we need to manually convert them
@@ -229,7 +358,7 @@ export default class PlasmConnect {
     }
 
     public async getCoinRate() {
-        const api = await this._apiInst;
+        const api = this._apiInst;
         const rate = ((await api.query.plasmLockdrop.dollarRate()) as unknown) as [number, number];
         return rate;
     }
