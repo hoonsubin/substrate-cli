@@ -29,10 +29,16 @@ async function claimAllHangingReq(hangingClaims: Claim[]) {
     await plasmApi.start();
     const cacheDir = `cache/${network}-claim-events.json`;
 
-    const cachedEvents = Utils.loadCache<Claim>(cacheDir);
+    //const cachedEvents = Utils.loadCache<Claim>(cacheDir);
 
-    const data = (await PlasmSubscan.fetchAllClaimData(plasmApi, cachedEvents)).filter((i) => {
-        return !i.complete && i.approve.size > 0;
+    // don't load cache so it always fetches the full list
+    const data = (await PlasmSubscan.fetchAllClaimData(plasmApi)).filter((i) => {
+        return i.approve.size > 0 && !i.complete;
+    });
+
+    fs.writeFile(cacheDir, JSON.stringify(data), function (err) {
+        if (err) return console.error(err);
+        console.log(`Successfully cached new events`);
     });
 
     const hanging = await PlasmSubscan.findHangingClaims(plasmApi, data);
@@ -46,16 +52,11 @@ async function claimAllHangingReq(hangingClaims: Claim[]) {
         });
         await claimAllHangingReq(hanging);
     }
-
-    fs.writeFile(cacheDir, JSON.stringify(data), function (err) {
-        if (err) return console.error(err);
-        console.log(`Successfully cached new events`);
-    });
 })()
     .catch((err) => {
         console.error(err);
     })
     .finally(async () => {
-        const api = await plasmApi.api;
+        const api = plasmApi.api;
         api.disconnect();
     });
