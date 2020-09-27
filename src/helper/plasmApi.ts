@@ -322,40 +322,42 @@ export default class PlasmConnect {
         console.log(`Fetching claim params and timestamping them...\n`);
         const fetchTimeStampPrg = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
         fetchTimeStampPrg.start(claimEvents.length, 0);
-        const blocks = claimEvents.map(async (i, index) => {
-            const _block = (await api.rpc.chain.getBlock(i.blockHash)).block;
-            const blockNumber = _block.header.number.unwrap().toNumber();
-            const timestamp = _block.extrinsics.find((i) => {
-                return i.method.section === 'timestamp';
-            }).method.args[0] as Moment;
-            const claimData = (await api.query.plasmLockdrop.claims(
-                polkadotUtils.hexToU8a(i.claimId),
-            )) as LockdropClaim;
+        const blocks = await Promise.all(
+            claimEvents.map(async (i, index) => {
+                const _block = (await api.rpc.chain.getBlock(i.blockHash)).block;
+                const blockNumber = _block.header.number.unwrap().toNumber();
+                const timestamp = _block.extrinsics.find((i) => {
+                    return i.method.section === 'timestamp';
+                }).method.args[0] as Moment;
+                const claimData = (await api.query.plasmLockdrop.claims(
+                    polkadotUtils.hexToU8a(i.claimId),
+                )) as LockdropClaim;
 
-            const _claim: Claim = {
-                params: {
-                    // we use snake case here because this data is directly parsed from the node
-                    type: claimData.params.type.toNumber() as LockdropType,
-                    transactionHash: claimData.params.transaction_hash,
-                    publicKey: claimData.params.public_key,
-                    duration: claimData.params.duration,
-                    value: claimData.params.value,
-                },
-                approve: claimData.approve,
-                decline: claimData.decline,
-                amount: claimData.amount,
-                complete: claimData.complete.valueOf(),
-                blockNumber,
-                timestamp: Math.trunc(timestamp.toNumber() / 1000),
-                claimId: i.claimId,
-            };
-            fetchTimeStampPrg.update(index + 1);
-            return _claim;
-        });
+                const _claim: Claim = {
+                    params: {
+                        // we use snake case here because this data is directly parsed from the node
+                        type: claimData.params.type.toNumber() as LockdropType,
+                        transactionHash: claimData.params.transaction_hash,
+                        publicKey: claimData.params.public_key,
+                        duration: claimData.params.duration,
+                        value: claimData.params.value,
+                    },
+                    approve: claimData.approve,
+                    decline: claimData.decline,
+                    amount: claimData.amount,
+                    complete: claimData.complete.valueOf(),
+                    blockNumber,
+                    timestamp: Math.trunc(timestamp.toNumber() / 1000),
+                    claimId: i.claimId,
+                };
+                fetchTimeStampPrg.update(index + 1);
+                return _claim;
+            }),
+        );
 
         fetchTimeStampPrg.stop();
 
-        const ordered = (await Promise.all(blocks)).sort((a, b) => {
+        const ordered = blocks.sort((a, b) => {
             return b.timestamp - a.timestamp;
         });
 
