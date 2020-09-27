@@ -3,12 +3,12 @@ import BigNumber from 'bignumber.js';
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import { Vec } from '@polkadot/types';
 import { Hash, Moment, H256, BlockNumber } from '@polkadot/types/interfaces';
-import { ClaimId, Claim as NodeClaim } from '@plasm/types/interfaces';
+import { ClaimId, Claim as LockdropClaim } from '@plasm/types/interfaces';
 import * as cliProgress from 'cli-progress';
 import * as polkadotUtilCrypto from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
 import * as plasmDefinitions from '@plasm/types/interfaces/definitions';
-import { Claim, Lockdrop } from '../models/EventTypes';
+import { Claim, Lockdrop, LockdropType } from '../models/EventTypes';
 // it is not good to import a type from a function script
 // todo: refactor this to have a dedicated types folder
 import { createLockParam, femtoToPlm, NodeEndpoint } from './plasmUtils';
@@ -253,20 +253,14 @@ export default class PlasmConnect {
         // start from the given block number, or at the beginning of the lockdrop
         const startBlock = startFrom || (await api.query.plasmLockdrop.lockdropBounds())[0].toNumber();
 
-        console.log('Querying the blockchain from block ' + startBlock);
+        console.log('Starting from block ' + startBlock);
 
         const lastHdr = (await api.rpc.chain.getHeader()).number.unwrap();
-
-        // expected block time in seconds
-        const blockTime = Math.trunc(api.consts.babe.expectedBlockTime.toNumber() / 1000);
-        // should check claims that are more than 30 minutes old
-        const claimMinAge = 30 * 60;
 
         const _queryRange = lastHdr.subn(startBlock).toNumber();
 
         // ensure no negative value is passed
-        const lockdropBlockRange = _queryRange > maxRequests ? _queryRange : maxRequests;
-
+        const lockdropBlockRange = Math.max(_queryRange, maxRequests);
         // number of calls needed to cover all the blocks
         const pages = Math.round(lockdropBlockRange / maxRequests);
 
@@ -278,14 +272,10 @@ export default class PlasmConnect {
         console.log('Fetching ' + pages + ' pages from plasm node...\n');
 
         const progressBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-        progressBar.start(pages, 0);
-        const blockHdrOffset = Math.trunc(claimMinAge / blockTime);
-
-        for (let i = 1; i <= pages; i++) {
-            // start block number = latest block - offset - current page * blocks per request
-            const startBlockNo = lastHdr.toNumber() - blockHdrOffset - i * maxRequests;
-            // the block offset ensures that we don't go above the latest block
-            const endBlockNo = startBlockNo + maxRequests;
+        progressBar.start(pages - 1, 0);
+        for (let i = 0; i < pages; i++) {
+            const startBlockNo = startBlock + i * maxRequests;
+            const endBlockNo = Math.min(startBlockNo + maxRequests, lastHdr.toNumber());
 
             const startHdr = await api.rpc.chain.getBlockHash(startBlockNo);
             const endHdr = await api.rpc.chain.getBlockHash(endBlockNo);
@@ -309,9 +299,12 @@ export default class PlasmConnect {
         }
         progressBar.stop();
 
-        console.log('Fetching block timestamps...');
+        if (blockEventList.length === 0) {
+            console.log('No new claim events found');
+            return [];
+        }
 
-        const claimList = blockEventList.map(async ({ blockHash, claimIds }) => {
+        const claimList = blockEventList.map(({ blockHash, claimIds }) => {
             const ids = claimIds.map((i) => {
                 return {
                     claimId: i.toHex(),
@@ -321,32 +314,57 @@ export default class PlasmConnect {
             return ids;
         });
 
-        const _claims = await Promise.all(claimList);
-
         // flatten the list
-        const claimEvents = _claims.reduce((accumulator, currentValue) => {
+        const claimEvents = claimList.reduce((accumulator, currentValue) => {
             return accumulator.concat(currentValue);
         });
-        const uniqueList = _.uniqBy(claimEvents, (i) => {
-            return i.claimId;
-        });
 
-        console.log(`Fetching claim params...\n`);
-        const claimParamProgBar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
-        claimParamProgBar.start(uniqueList.length - 1, 0);
-        // add block number to the claim request
-        const newClaimEvents = await Promise.all(
-            uniqueList.map(async (i, index) => {
-                const _claim = await this.getClaimData(polkadotUtils.hexToU8a(i.claimId), i.blockHash);
-                claimParamProgBar.update(index);
-                return {
-                    ..._claim,
-                    ...i,
-                } as Claim;
+        console.log(`Fetching claim params and timestamping them...\n`);
+        const fetchTimeStampPrg = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+        fetchTimeStampPrg.start(claimEvents.length - 1, 0);
+        const blocks = await Promise.all(
+            claimEvents.map(async (i, index) => {
+                const _block = (await api.rpc.chain.getBlock(i.blockHash)).block;
+                const blockNumber = _block.header.number.unwrap().toNumber();
+                const timestamp = _block.extrinsics.find((i) => {
+                    return i.method.section === 'timestamp';
+                }).method.args[0] as Moment;
+                const claimData = (await api.query.plasmLockdrop.claims(
+                    polkadotUtils.hexToU8a(i.claimId),
+                )) as LockdropClaim;
+
+                const _claim: Claim = {
+                    params: {
+                        // we use snake case here because this data is directly parsed from the node
+                        type: claimData.params.type.toNumber() as LockdropType,
+                        transactionHash: claimData.params.transaction_hash,
+                        publicKey: claimData.params.public_key,
+                        duration: claimData.params.duration,
+                        value: claimData.params.value,
+                    },
+                    approve: claimData.approve,
+                    decline: claimData.decline,
+                    amount: claimData.amount,
+                    complete: claimData.complete.valueOf(),
+                    blockNumber,
+                    timestamp: Math.trunc(timestamp.toNumber() / 1000),
+                    claimId: i.claimId,
+                };
+                fetchTimeStampPrg.update(index);
+                return _claim;
             }),
         );
-        claimParamProgBar.stop();
-        return newClaimEvents;
+        fetchTimeStampPrg.stop();
+
+        const ordered = blocks.sort((a, b) => {
+            return b.timestamp - a.timestamp;
+        });
+
+        // remove duplicate ID
+        const uniqueList = _.uniqBy(ordered, (i) => {
+            return i.claimId;
+        });
+        return uniqueList;
     }
 
     public async getLockdropAlpha() {
