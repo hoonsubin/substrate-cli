@@ -29,4 +29,11 @@ export declare namespace SubscanApi {
         value: string;
         value_raw: string;
     }
+
+    export interface ClaimReqEvent {
+        blockNumber: number;
+        timestamp: number;
+        claimId: string;
+        eventIndex: string;
+    }
 }

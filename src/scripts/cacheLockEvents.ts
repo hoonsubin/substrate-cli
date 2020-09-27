@@ -2,13 +2,14 @@ import fs from 'fs';
 import { EthLockdrop, Utils } from '../helper';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
 import Web3 from 'web3';
+import { LockEvent } from '../models/EventTypes';
 
 async function updateLockdropCache(web3: Web3, contractAddress: string) {
     // cache names are based on contract address
     const cacheFileDir = `cache/cache-${contractAddress.slice(0, 6)}.json`;
 
     // load cache or an empty array
-    const _prevLocks = Utils.loadCache(cacheFileDir);
+    const _prevLocks = Utils.loadCache<LockEvent>(cacheFileDir);
 
     console.log('Fetching events for ' + contractAddress);
     const newEv = await EthLockdrop.getAllLockEvents(web3, contractAddress, _prevLocks);

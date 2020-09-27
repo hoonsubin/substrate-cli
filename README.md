@@ -27,4 +27,10 @@ yarn fetch:eth-main
 
 # build Ropsten Ethereum cache
 yarn fetch:eth-test
+
+# build plasm mainnet claim request cache
+yarn fetch:claims
+
+# build cache for everything
+yarn fetch:all
 ```

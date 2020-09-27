@@ -1,46 +1,41 @@
-import { SubscanApi } from '../models/SubscanTypes';
-import { postJsonRequest } from './utils';
+import _ from 'lodash';
+import PlasmConnect from './plasmApi';
+import { Claim } from '../models/EventTypes';
 
-const SUBSCAN_ENDPOINT = 'https://plasm.subscan.io/api/scan/events';
+export async function fetchAllClaimData(plasmApi: PlasmConnect, prevEvents: Claim[] = []) {
+    if (prevEvents.length === 0) {
+        console.log('No cache found, starting from scratch...');
+    }
+    // fetch from the highest blocknumber in cache
+    let reqEvents = await plasmApi.fetchClaimRequestCall(prevEvents.length > 0 && prevEvents[0].blockNumber);
 
-export async function fetchPlasmEvents(
-    module: string,
-    call: string,
-    displayRow: number,
-    fetchType: 'all' | 'single-page',
+    reqEvents = reqEvents.concat(prevEvents);
+
+    // ensure no duplicates are there
+    const cleanList = _.uniqBy(reqEvents, (i) => {
+        return i.claimId;
+    });
+    return cleanList;
+}
+
+export async function findHangingClaims(
+    plasmApi: PlasmConnect,
+    claimData: Claim[],
+    validatorWaitTime: number = 30 * 60,
 ) {
-    async function fetchEventPage(module: string, call: string, displayRow: number, pageNo: number = 0) {
-        const apiParam = {
-            row: displayRow,
-            page: pageNo,
-            module,
-            call,
-        };
+    const { voteThreshold, positiveVotes } = await plasmApi.getLockdropVoteRequirements();
 
-        const res = await postJsonRequest(SUBSCAN_ENDPOINT, apiParam);
-        const logs: SubscanApi.Response = JSON.parse(res);
+    const hanging = claimData.filter((i) => {
+        const isClaimHanging = i.approve.size - i.decline.size < voteThreshold || i.approve.size < positiveVotes;
+        const isValidClaim = i.approve.size > 0;
+        const isVoteLate = i.timestamp + validatorWaitTime < Date.now().valueOf() / 1000;
+        //console.log(`Claim ${i.claimId} has ${i.approve.size} approvals and ${i.decline.size} disapprovals`);
 
-        if (logs.code !== 0) {
-            throw new Error(logs.message);
-        }
-        return logs.data;
-    }
+        return (
+            (isClaimHanging && isVoteLate && isValidClaim) ||
+            (i.approve.size === 0 && i.decline.size === 0 && isVoteLate)
+        );
+    });
 
-    const eventResponse = await fetchEventPage(module, call, displayRow);
-
-    let events = eventResponse.events;
-
-    if (fetchType === 'all') {
-        // we can simply truncate the value because the page number is zero-indexed
-        const _totalPageCount = Math.trunc(eventResponse.count / displayRow);
-
-        // we start from 1 because we already fetched once
-        for (let i = 1; i <= _totalPageCount; i++) {
-            const _eventData = await fetchEventPage(module, call, displayRow, i);
-            //console.log(i);
-            events = events.concat(_eventData.events);
-        }
-    }
-
-    return events;
+    return hanging;
 }
