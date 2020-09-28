@@ -22,6 +22,10 @@
         {
             "name": "eth",
             "description": "Everything about the Ethereum lockdrop contract events"
+        },
+        {
+            "name": "plm",
+            "description": "Everything about the Real-time lockdrop claim events"
         }
     ],
     "paths": {
