@@ -1,29 +1,17 @@
 import fs from 'fs';
-import EthLockdrop from '../helper';
-import { LockEvent } from '../models/LockEvent';
+import { EthLockdrop, Utils } from '../helper';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
 import Web3 from 'web3';
-
-export const loadCache = (jsonDir: string) => {
-    try {
-        const _cache = fs.readFileSync(jsonDir, { encoding: 'utf8' });
-        const cache = JSON.parse(_cache);
-
-        const _prevLocks: LockEvent[] = cache;
-        return _prevLocks;
-    } catch (e) {
-        return [] as LockEvent[];
-    }
-};
+import { LockEvent } from '../models/EventTypes';
 
 async function updateLockdropCache(web3: Web3, contractAddress: string) {
     // cache names are based on contract address
     const cacheFileDir = `cache/cache-${contractAddress.slice(0, 6)}.json`;
 
     // load cache or an empty array
-    const _prevLocks = loadCache(cacheFileDir);
+    const _prevLocks = Utils.loadCache<LockEvent>(cacheFileDir);
 
-    console.log('Starting fetch');
+    console.log('Fetching events for ' + contractAddress);
     const newEv = await EthLockdrop.getAllLockEvents(web3, contractAddress, _prevLocks);
 
     const jsonBlob = JSON.stringify(newEv);
@@ -65,7 +53,6 @@ async function updateAllContracts(web3: Web3) {
     const networkType = process.argv[2].match('mainnet') ? 'mainnet' : 'ropsten';
 
     const web3 = new Web3(EthLockdrop.infuraHttpProvider(networkType));
-    //todo: change function depending on the script parameter
     await updateAllContracts(web3);
 })().catch((err) => {
     console.log(err);
