@@ -3,23 +3,17 @@ import _ from 'lodash';
 import { LockEvent } from '../models/EventTypes';
 import Web3Utils from 'web3-utils';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
-
+import { Contract } from 'web3-eth-contract';
 import Web3 from 'web3';
 import ContractAbi from '../contracts/Lockdrop.json';
 import { getJsonRequest, wait } from './utils';
+import moment from 'moment';
 
 // we import with the require method due to an error with the lib
 const Web3EthAbi = require('web3-eth-abi');
 
 export const infuraHttpProvider = (network: 'ropsten' | 'mainnet') =>
     `https://${network}.infura.io/v3/${process.env.INFURA_PROJ_ID}`;
-
-function createContractInstance(web3: Web3, contractAddress: string) {
-    const lockdropAbi = ContractAbi.abi as Web3Utils.AbiItem[];
-
-    // create an empty contract instance first
-    return new web3.eth.Contract(lockdropAbi, contractAddress);
-}
 
 /**
  * fetch contract logs from etherscan. Because there is no API keys, the fetch will be limited to 1 time ever second
@@ -29,7 +23,7 @@ function createContractInstance(web3: Web3, contractAddress: string) {
  * @param toBlock up to what block the API should fetch for
  * @param ropsten pass true to search for ropsten network
  */
-export async function fetchLockdropEventsEtherscan(
+async function fetchLockdropEventsEtherscan(
     contractAddress: string,
     web3: Web3,
     fromBlock: number | 'latest' | 'pending' | 'earliest' | 'genesis' = 'genesis',
@@ -84,7 +78,7 @@ export async function fetchLockdropEventsEtherscan(
  * @param fromBlock which block to search from
  * @param toBlock up to what block the API should fetch for
  */
-export async function fetchLockdropEventsWeb3(
+async function fetchLockdropEventsWeb3(
     contractAddress: string,
     web3: Web3,
     fromBlock: number | 'latest' | 'pending' | 'earliest' | 'genesis' = 'genesis',
@@ -183,7 +177,10 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
     try {
         newEvents = await fetchLockdropEventsEtherscan(contract, web3, startBlock, 'latest', isTestnet);
     } catch (e) {
-        console.log(`Got error ${e.message} from Etherscan\nUsing Infura instead...`);
+        console.warn(`Got error ${e.message} from Etherscan`);
+        console.log('Using Infura instead...');
+
+        const contractInst = new web3.eth.Contract(ContractAbi.abi as Web3Utils.AbiItem[], contract);
         newEvents = await fetchLockdropEventsWeb3(contract, web3, startBlock, 'latest');
     }
 

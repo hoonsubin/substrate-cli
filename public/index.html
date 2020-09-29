@@ -8,10 +8,10 @@
     <head>
         <meta charset="utf-8" />
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-        <title>Lockdrop Cache Server API</title>
+        <title>Lockdrop Server API</title>
         <meta name="description" content="" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="stylesheet" href="" />
+        <link rel="stylesheet" type="text/css" href="styles/swagger-ui.css" />
     </head>
     <body>
         <!--[if lt IE 7]>
@@ -20,11 +20,21 @@
                 improve your experience.
             </p>
         <![endif]-->
-        <h1>This is the API server</h1>
+        <div id="swagger-ui"></div>
 
-        <script src="" async defer></script>
+        <script src="js/swagger-ui-bundle.js"></script>
+        <script src="js/swagger-ui-standalone-preset.js"></script>
+
         <script>
-            console.log('hello world');
+            window.onload = function () {
+                const ui = SwaggerUIBundle({
+                    url: 'openapi.json',
+                    dom_id: '#swagger-ui',
+                    presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+                });
+
+                window.ui = ui;
+            };
         </script>
     </body>
 </html>
