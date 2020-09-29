@@ -4,6 +4,10 @@ import { firstLockContract, secondLockContract } from '../data/lockdropContracts
 import Web3 from 'web3';
 import { LockEvent } from '../models/EventTypes';
 
+const networkType = process.argv[2].match('mainnet') ? 'mainnet' : 'ropsten';
+
+const web3 = new Web3(EthLockdrop.infuraHttpProvider(networkType));
+
 async function updateLockdropCache(web3: Web3, contractAddress: string) {
     // cache names are based on contract address
     const cacheFileDir = `cache/cache-${contractAddress.slice(0, 6)}.json`;
@@ -23,7 +27,8 @@ async function updateLockdropCache(web3: Web3, contractAddress: string) {
     });
 }
 
-async function updateAllContracts(web3: Web3) {
+// script entry point
+(async () => {
     const chainName = await web3.eth.net.getNetworkType();
     const _contracts = [...firstLockContract, ...secondLockContract].filter((i) => {
         return i.type === chainName;
@@ -46,14 +51,6 @@ async function updateAllContracts(web3: Web3) {
             continue;
         }
     }
-}
-
-// script entry point
-(async () => {
-    const networkType = process.argv[2].match('mainnet') ? 'mainnet' : 'ropsten';
-
-    const web3 = new Web3(EthLockdrop.infuraHttpProvider(networkType));
-    await updateAllContracts(web3);
 })().catch((err) => {
     console.log(err);
 });
