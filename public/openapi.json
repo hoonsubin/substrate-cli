@@ -142,6 +142,38 @@
                     }
                 }
             }
+        },
+        "/plm/{network-type}/unclaimed": {
+            "get": {
+                "tags": ["plm"],
+                "summary": "Returns all unclaimed claim requests",
+                "description": "",
+                "operationId": "getUnclaimReq",
+                "parameters": [
+                    {
+                        "name": "network type",
+                        "in": "path",
+                        "description": "Plasm Network Type",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "enum": ["main", "dusty"]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "successful operation",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ClaimRequests"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -182,6 +214,73 @@
                         "transactionHash": {
                             "type": "string",
                             "format": "Hash"
+                        }
+                    }
+                }
+            },
+            "Lockdrop": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "integer",
+                        "format": "uint8"
+                    },
+                    "duration": {
+                        "type": "number",
+                        "format": "integer"
+                    },
+                    "blockNo": {
+                        "type": "number",
+                        "format": "integer"
+                    },
+                    "timestamp": {
+                        "type": "number",
+                        "format": "integer"
+                    },
+                    "publicKey": {
+                        "type": "string",
+                        "format": "Hash"
+                    },
+                    "transactionHash": {
+                        "type": "string",
+                        "format": "Hash"
+                    }
+                }
+            },
+            "ClaimRequests": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "params": {
+                            "$ref": "#/components/schemas/Lockdrop"
+                        },
+                        "timestamp": {
+                            "type": "number",
+                            "format": "integer"
+                        },
+                        "blockNumber": {
+                            "type": "number",
+                            "format": "integer"
+                        },
+                        "claimId": {
+                            "type": "string",
+                            "format": "Hash"
+                        },
+                        "approve": {
+                            "type": "array",
+                            "format": "string"
+                        },
+                        "decline": {
+                            "type": "array",
+                            "format": "string"
+                        },
+                        "amount": {
+                            "type": "number",
+                            "format": "uint128"
+                        },
+                        "complete": {
+                            "type": "boolean"
                         }
                     }
                 }

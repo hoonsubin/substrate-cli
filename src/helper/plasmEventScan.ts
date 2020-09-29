@@ -3,9 +3,6 @@ import PlasmConnect from './plasmApi';
 import { Claim } from '../models/EventTypes';
 
 export async function fetchAllClaimData(plasmApi: PlasmConnect, prevEvents: Claim[] = []) {
-    if (prevEvents.length === 0) {
-        console.log('No cache found, starting from scratch...');
-    }
     // fetch from the highest blocknumber in cache
     let reqEvents = await plasmApi.fetchClaimRequestCall(prevEvents.length > 0 && prevEvents[0].blockNumber);
 

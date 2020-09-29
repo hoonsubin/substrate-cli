@@ -35,6 +35,7 @@
         "cli-progress": "^3.8.2",
         "express": "^4.17.1",
         "lodash": "^4.17.20",
+        "moment": "^2.29.0",
         "node-fetch": "^2.6.1",
         "web3": "^1.2.11"
     }

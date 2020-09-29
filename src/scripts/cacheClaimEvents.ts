@@ -31,6 +31,7 @@ async function claimAllHangingReq(hangingClaims: Claim[]) {
 
     const cachedEvents = Utils.loadCache<Claim>(cacheDir);
 
+    console.log('Fetching all unclaimed requests...');
     // don't load cache so it always fetches the full list
     const data = (await PlasmSubscan.fetchAllClaimData(plasmApi)).filter((i) => {
         return i.approve.size > 0 && !i.complete;
@@ -38,7 +39,7 @@ async function claimAllHangingReq(hangingClaims: Claim[]) {
 
     fs.writeFile(cacheDir, JSON.stringify(data), function (err) {
         if (err) return console.error(err);
-        console.log(`Successfully cached ${cachedEvents.length - data.length} new events`);
+        console.log(`Successfully cached ${data.length - cachedEvents.length} new events`);
     });
 
     const hanging = await PlasmSubscan.findHangingClaims(plasmApi, data);
@@ -50,7 +51,7 @@ async function claimAllHangingReq(hangingClaims: Claim[]) {
             if (err) return console.error(err);
             console.log('Successfully cached hanging events');
         });
-        await claimAllHangingReq(hanging);
+        //await claimAllHangingReq(hanging);
     }
 })()
     .catch((err) => {
