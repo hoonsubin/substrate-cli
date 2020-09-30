@@ -360,12 +360,7 @@ export default class PlasmConnect {
         const ordered = blocks.sort((a, b) => {
             return b.timestamp - a.timestamp;
         });
-
-        // remove duplicate ID
-        const uniqueList = _.uniqBy(ordered, (i) => {
-            return i.claimId;
-        });
-        return uniqueList;
+        return ordered;
     }
 
     public async getLockdropAlpha() {

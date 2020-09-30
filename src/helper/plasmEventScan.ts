@@ -8,11 +8,9 @@ export async function fetchAllClaimData(plasmApi: PlasmConnect, prevEvents: Clai
 
     reqEvents = reqEvents.concat(prevEvents);
 
-    // ensure no duplicates are there
-    const cleanList = _.uniqBy(reqEvents, (i) => {
-        return i.claimId;
+    return reqEvents.sort((a, b) => {
+        return b.timestamp - a.timestamp;
     });
-    return cleanList;
 }
 
 export async function findHangingClaims(
@@ -22,17 +20,19 @@ export async function findHangingClaims(
 ) {
     const { voteThreshold, positiveVotes } = await plasmApi.getLockdropVoteRequirements();
 
-    const hanging = claimData.filter((i) => {
-        const isClaimHanging = i.approve.size - i.decline.size < voteThreshold || i.approve.size < positiveVotes;
-        const isValidClaim = i.approve.size > 0;
-        const isVoteLate = i.timestamp + validatorWaitTime < Date.now().valueOf() / 1000;
-        //console.log(`Claim ${i.claimId} has ${i.approve.size} approvals and ${i.decline.size} disapprovals`);
+    const hanging = claimData
+        .filter((i) => !i.complete)
+        .filter((i) => {
+            const isClaimHanging = i.approve.size - i.decline.size < voteThreshold || i.approve.size < positiveVotes;
+            const isValidClaim = i.approve.size > 0;
+            const isVoteLate = i.timestamp + validatorWaitTime < Date.now().valueOf() / 1000;
+            //console.log(`Claim ${i.claimId} has ${i.approve.size} approvals and ${i.decline.size} disapprovals`);
 
-        return (
-            (isClaimHanging && isVoteLate && isValidClaim) ||
-            (i.approve.size === 0 && i.decline.size === 0 && isVoteLate)
-        );
-    });
+            return (
+                (isClaimHanging && isVoteLate && isValidClaim) ||
+                (i.approve.size === 0 && i.decline.size === 0 && isVoteLate)
+            );
+        });
 
     return hanging;
 }
