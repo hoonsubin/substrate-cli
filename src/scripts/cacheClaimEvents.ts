@@ -3,6 +3,7 @@ import fs from 'fs';
 import PlasmConnect from '../helper/plasmApi';
 import { Claim } from '../models/EventTypes';
 import * as polkadotUtils from '@polkadot/util';
+import _ from 'lodash';
 
 const network: PlasmUtils.NodeEndpoint = 'Main';
 const plasmApi = new PlasmConnect(network);
@@ -24,34 +25,58 @@ async function claimAllHangingReq(hangingClaims: Claim[]) {
     });
 }
 
+function cacheUnclaimed(claimReqs: Claim[]) {
+    const cacheDir = `cache/${network}-unclaimed-requests.json`;
+    const unclaimed = claimReqs.filter((call) => {
+        return !call.complete;
+    });
+    const sorted = unclaimed.sort((a, b) => {
+        return b.timestamp - a.timestamp;
+    });
+    const uniq = _.uniqBy(sorted, (call) => {
+        return call.claimId;
+    });
+
+    fs.writeFile(cacheDir, JSON.stringify(uniq), function (err) {
+        if (err) return console.error(err);
+        console.log(`Successfully cached ${uniq.length} unclaimed requests`);
+    });
+
+    return uniq;
+}
+
 // script entry point
 (async () => {
     await plasmApi.start();
-    const cacheDir = `cache/${network}-claim-events.json`;
+    const cacheDir = `cache/${network}-all-claim-requests.json`;
 
     const cachedEvents = Utils.loadCache<Claim>(cacheDir);
 
     console.log('Fetching all unclaimed requests...');
-    // don't load cache so it always fetches the full list
-    const data = (await PlasmSubscan.fetchAllClaimData(plasmApi)).filter((i) => {
-        return i.approve.size > 0 && !i.complete;
-    });
 
-    fs.writeFile(cacheDir, JSON.stringify(data), function (err) {
-        if (err) return console.error(err);
-        console.log(`Successfully cached ${data.length - cachedEvents.length} new events`);
-    });
+    const data = await PlasmSubscan.fetchAllClaimData(plasmApi, cachedEvents);
 
-    const hanging = await PlasmSubscan.findHangingClaims(plasmApi, data);
+    const newCalls = data.length - cachedEvents.length;
 
-    if (hanging.length > 0) {
-        console.log(`There are ${hanging.length} hanging claims`);
-
-        fs.writeFile(`cache/${network}-hanging-claims.json`, JSON.stringify(hanging), function (err) {
+    if (newCalls > 0) {
+        fs.writeFile(cacheDir, JSON.stringify(data), function (err) {
             if (err) return console.error(err);
-            console.log('Successfully cached hanging events');
+            console.log(`Successfully cached ${data.length - cachedEvents.length} new events`);
         });
-        //await claimAllHangingReq(hanging);
+
+        const unclaimed = cacheUnclaimed(data);
+
+        const hanging = await PlasmSubscan.findHangingClaims(plasmApi, unclaimed);
+
+        if (hanging.length > 0) {
+            console.log(`There are ${hanging.length} hanging claims`);
+
+            fs.writeFile(`cache/${network}-hanging-claims.json`, JSON.stringify(hanging), function (err) {
+                if (err) return console.error(err);
+                console.log('Successfully cached hanging events');
+            });
+            await claimAllHangingReq(hanging);
+        }
     }
 })()
     .catch((err) => {
