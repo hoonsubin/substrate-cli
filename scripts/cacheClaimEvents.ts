@@ -1,29 +1,12 @@
-import { PlasmSubscan, Utils, PlasmUtils } from '../src/helper';
+import { PlasmEventScan, Utils, PlasmUtils } from '../src/helper';
 import fs from 'fs';
 import PlasmConnect from '../src/helper/plasmApi';
 import { Claim } from '../src/models/EventTypes';
-import * as polkadotUtils from '@polkadot/util';
+import { PlasmSubscan } from '../src/helper';
 import _ from 'lodash';
 
 const network: PlasmUtils.NodeEndpoint = 'Main';
 const plasmApi = new PlasmConnect(network);
-
-async function claimAllHangingReq(hangingClaims: Claim[]) {
-    const res = await Promise.all(
-        hangingClaims.map(async (i) => {
-            const claimNonce = PlasmUtils.claimPowNonce(polkadotUtils.hexToU8a(i.claimId));
-            const hash = await plasmApi.sendLockClaimRequest(i.params, claimNonce);
-            return {
-                hash,
-                claimId: i.claimId,
-            };
-        }),
-    );
-
-    res.forEach((i) => {
-        console.log(`Sent claim request for ${i.claimId} with the hash ${i.hash.toHex()}`);
-    });
-}
 
 function cacheUnclaimed(claimReqs: Claim[]) {
     const cacheDir = `cache/${network}-unclaimed-requests.json`;
@@ -45,8 +28,7 @@ function cacheUnclaimed(claimReqs: Claim[]) {
     return uniq;
 }
 
-// script entry point
-(async () => {
+async function fetchClaimRequests() {
     await plasmApi.start();
     const cacheDir = `cache/${network}-all-claim-requests.json`;
 
@@ -54,7 +36,7 @@ function cacheUnclaimed(claimReqs: Claim[]) {
 
     console.log('Fetching all unclaimed requests...');
 
-    const data = await PlasmSubscan.fetchAllClaimData(plasmApi, cachedEvents);
+    const data = await PlasmEventScan.fetchAllClaimData(plasmApi, cachedEvents);
 
     const newCalls = data.length - cachedEvents.length;
 
@@ -66,7 +48,7 @@ function cacheUnclaimed(claimReqs: Claim[]) {
 
         const unclaimed = cacheUnclaimed(data);
 
-        const hanging = await PlasmSubscan.findHangingClaims(plasmApi, unclaimed);
+        const hanging = await PlasmEventScan.findHangingClaims(plasmApi, unclaimed);
 
         if (hanging.length > 0) {
             console.log(`There are ${hanging.length} hanging claims`);
@@ -75,9 +57,26 @@ function cacheUnclaimed(claimReqs: Claim[]) {
                 if (err) return console.error(err);
                 console.log('Successfully cached hanging events');
             });
-            await claimAllHangingReq(hanging);
         }
     }
+}
+
+async function fetchClaimComplete() {
+    const cacheDir = 'cache/claim-complete.json';
+    const allEvents = await PlasmSubscan.fetchPlasmEvents('plasmlockdrop', 'claimcomplete', 100, 'all');
+
+    console.log(allEvents);
+
+    fs.writeFile(cacheDir, JSON.stringify(allEvents), function (err) {
+        if (err) return console.error(err);
+        console.log('fetched ' + allEvents.length + ' events');
+    });
+}
+
+// script entry point
+(async () => {
+    console.log('Fetching Plasm chain events...');
+    await fetchClaimComplete();
 })()
     .catch((err) => {
         console.error(err);

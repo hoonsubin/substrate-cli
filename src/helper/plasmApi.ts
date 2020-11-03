@@ -241,6 +241,10 @@ export default class PlasmConnect {
         return data;
     }
 
+    public async fetchClaimComplete(startFrom?: number) {
+        const api = this._apiInst;
+    }
+
     /**
      * Fetches all lockdrop reward claim request events from the node.
      * @param startFrom block number for where
@@ -322,6 +326,7 @@ export default class PlasmConnect {
         console.log(`Fetching claim params and timestamping them...\n`);
         const fetchTimeStampPrg = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
         fetchTimeStampPrg.start(claimEvents.length, 0);
+
         const blocks = await Promise.all(
             claimEvents.map(async (i, index) => {
                 const _block = (await api.rpc.chain.getBlock(i.blockHash)).block;
