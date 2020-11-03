@@ -1,6 +1,6 @@
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export declare namespace SubscanApi {
-    interface Event {
+    export interface Event {
         event_index: string;
         block_num: number;
         extrinsic_idx: number;
@@ -12,7 +12,7 @@ export declare namespace SubscanApi {
         block_timestamp: number;
     }
 
-    interface EventParam {
+    export interface EventParam {
         type: string;
         value: string;
         value_raw: string;
