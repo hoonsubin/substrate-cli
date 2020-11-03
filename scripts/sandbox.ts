@@ -1,4 +1,4 @@
-import PlasmConnect from '../helper/plasmApi';
+import PlasmConnect from '../src/helper/plasmApi';
 
 const plasmApi = new PlasmConnect('Main');
 

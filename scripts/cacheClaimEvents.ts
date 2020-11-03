@@ -1,7 +1,7 @@
-import { PlasmSubscan, Utils, PlasmUtils } from '../helper';
+import { PlasmSubscan, Utils, PlasmUtils } from '../src/helper';
 import fs from 'fs';
-import PlasmConnect from '../helper/plasmApi';
-import { Claim } from '../models/EventTypes';
+import PlasmConnect from '../src/helper/plasmApi';
+import { Claim } from '../src/models/EventTypes';
 import * as polkadotUtils from '@polkadot/util';
 import _ from 'lodash';
 

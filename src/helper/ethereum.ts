@@ -47,7 +47,7 @@ async function fetchLockdropEventsEtherscan(
         throw new Error(logs.message);
     }
 
-    const lockdropAbiInputs = ContractAbi.abi.find((i) => i.name === 'Locked').inputs;
+    const lockdropAbiInputs = ContractAbi.abi.find((i) => i.name === 'Locked')!.inputs;
 
     const lockEvents = logs.result.map(async (event) => {
         const decoded: any = Web3EthAbi.decodeLog(lockdropAbiInputs, event.data, event.topics);
@@ -115,7 +115,7 @@ async function fetchLockdropEventsWeb3(
                 duration: lockEvent.duration as number,
                 lock: lockEvent.lock as string,
                 introducer: lockEvent.introducer as string,
-                blockNo: blockHash.blockNumber,
+                blockNo: blockHash.blockNumber || 0,
                 timestamp: Number.parseInt(time),
                 lockOwner: blockHash.from,
                 transactionHash: blockHash.hash,
@@ -133,7 +133,7 @@ async function fetchLockdropEventsWeb3(
  */
 export function contractToNetwork(contractAddr: string) {
     const allContracts = [...firstLockContract, ...secondLockContract];
-    const network = allContracts.find((i) => i.address === contractAddr).type;
+    const network = allContracts.find((i) => i.address === contractAddr)!.type;
     return network;
 }
 
@@ -157,11 +157,15 @@ export function getHighestBlockNo(lockEvents: LockEvent[]) {
  * @param contract the contract address with the lock events
  * @param prevEvents previous event lists loaded from the cache
  */
-export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?: LockEvent[]): Promise<LockEvent[]> {
+export async function getAllLockEvents(
+    web3: Web3,
+    contract: string,
+    prevEvents: LockEvent[] = [],
+): Promise<LockEvent[]> {
     // set the correct block number either based on the create block or the latest event block
     let startBlock = [...firstLockContract, ...secondLockContract].find(
         (i) => i.address.toLowerCase() === contract.toLowerCase(),
-    ).blockHeight;
+    )!.blockHeight;
 
     if (prevEvents.length > 0 && Array.isArray(prevEvents)) {
         startBlock = getHighestBlockNo(prevEvents);
@@ -179,8 +183,6 @@ export async function getAllLockEvents(web3: Web3, contract: string, prevEvents?
     } catch (e) {
         console.warn(`Got error ${e.message} from Etherscan`);
         console.log('Using Infura instead...');
-
-        const contractInst = new web3.eth.Contract(ContractAbi.abi as Web3Utils.AbiItem[], contract);
         newEvents = await fetchLockdropEventsWeb3(contract, web3, startBlock, 'latest');
     }
 

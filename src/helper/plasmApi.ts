@@ -204,7 +204,7 @@ export default class PlasmConnect {
         const blockNumber = blockData.header.number.unwrap().toNumber();
         const timestamp = blockData.extrinsics.find((i) => {
             return i.method.section === 'timestamp';
-        }).method.args[0] as Moment;
+        })!.method.args[0] as Moment;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const claim = (await api.query.plasmLockdrop.claims(claimId)) as any;
@@ -251,7 +251,7 @@ export default class PlasmConnect {
         const maxRequests = 2500;
 
         // start from the given block number, or at the beginning of the lockdrop
-        const startBlock = startFrom || (await api.query.plasmLockdrop.lockdropBounds())[0].toNumber();
+        const startBlock = startFrom || ((await api.query.plasmLockdrop.lockdropBounds()) as any).toNumber();
 
         console.log('Starting from block ' + startBlock);
 
@@ -328,7 +328,7 @@ export default class PlasmConnect {
                 const blockNumber = _block.header.number.unwrap().toNumber();
                 const timestamp = _block.extrinsics.find((i) => {
                     return i.method.section === 'timestamp';
-                }).method.args[0] as Moment;
+                })!.method.args[0] as Moment;
                 const claimData = (await api.query.plasmLockdrop.claims(
                     polkadotUtils.hexToU8a(i.claimId),
                 )) as LockdropClaim;
