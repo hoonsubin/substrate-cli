@@ -3,22 +3,17 @@ import { LockEvent, FullClaimData, LockdropType } from '../src/models/EventTypes
 import _ from 'lodash';
 import * as PlasmUtils from '../src/helper/plasmUtils';
 import PlasmConnect from '../src/helper/plasmApi';
-import fs from 'fs';
 import * as PolkadotUtils from '@polkadot/util';
 import { Claim as LockdropClaim } from '@plasm/types/interfaces';
 import { defaultAddress, isValidIntroducerAddress } from '../src/data/affiliationAddress';
 import claims from './data/claim-complete.json';
 import locks from './data/eth-main-locks.json';
 import allClaimData from './data/claim-full-data.json';
+import Introducer from '../src/models/LockdropIntroducer';
+import { Utils } from '../src/helper';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
 const plasmApi = new PlasmConnect(network);
-
-const cacheObject = <T>(data: T, name?: string, path?: string) => {
-    console.log('writing the data locally...');
-    const dirName = `${path || __dirname}/${name || 'response'}.json`;
-    fs.writeFileSync(dirName, JSON.stringify(data));
-};
 
 const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
     const eventValue = eventList.params.find((i) => i.type === type)?.value;
@@ -85,9 +80,35 @@ const getLocksWithIntroducer = (claimList: FullClaimData[], affAddress?: string)
     // filter out the list with claims that has an introducer
     const locksWithIntroducer = _.filter(claimList, (i) => {
         const { introducer } = i.lockEvent;
+        if (!isValidIntroducerAddress(introducer)) throw new Error(`Address ${introducer} is not a valid introducer`);
+
         return affAddress ? introducer === affAddress : introducer !== defaultAddress;
     });
     return locksWithIntroducer;
+};
+
+const getAllIntroducers = (claimList: FullClaimData[]) => {
+    const locksWithIntroducer = getLocksWithIntroducer(claimList);
+
+    // get all introducer addresses that was referenced by a lock
+    const introducerAddrWithRef = _.uniq(
+        _.map(locksWithIntroducer, (i) => {
+            return i.lockEvent.introducer;
+        }),
+    );
+
+    const introducers = _.map(introducerAddrWithRef, (introducerAddr) => {
+        const referencedLocks = _.filter(locksWithIntroducer, (lock) => {
+            return lock.lockEvent.introducer === introducerAddr;
+        });
+
+        const introducersLocks = _.filter(claimList, (lock) => {
+            return lock.lockEvent.lockOwner === introducerAddr;
+        });
+        return new Introducer({ ethAddress: introducerAddr, locks: introducersLocks, references: referencedLocks });
+    });
+
+    return introducers;
 };
 
 // script entry point
@@ -104,16 +125,13 @@ const getLocksWithIntroducer = (claimList: FullClaimData[], affAddress?: string)
     // const fullData = await fetchAllClaims(cachedLockEvents, cachedClaimCompleteEv);
     // cacheObject(fullData, 'claims-with-aff');
 
-    const locksWithIntroducer = getLocksWithIntroducer(cachedClaimData);
+    const introducers = getAllIntroducers(cachedClaimData);
 
-    const referencedIntroducers = _.uniq(
-        _.map(locksWithIntroducer, (i) => {
-            return i.lockEvent.introducer;
-        }),
-    );
+    Utils.writeCache(introducers, 'introducer-data', __dirname);
 
     console.log('finished');
     process.exit(0);
 })().catch((err) => {
     console.error(err);
+    process.exit(1);
 });

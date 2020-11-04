@@ -2,8 +2,6 @@ import _ from 'lodash';
 // the default introducer address when none is provided by the user
 export const defaultAddress = '0x0000000000000000000000000000000000000000';
 
-export const affiliationRate = 0.01;
-
 const firstEthIntroducer = [
     '0xd8de1f6764e442b8763d313722e9eaee3779707e',
     '0x1d32750e8a03443f008236f7c344fc84821cf690',

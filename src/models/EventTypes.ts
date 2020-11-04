@@ -26,12 +26,6 @@ export enum LockdropType {
     Ethereum,
 }
 
-export interface ClaimReq {
-    claimId: string;
-    blockNumber: number;
-    timestamp: number;
-}
-
 /**
  * used for real-time lockdrop parameter
  * this data is used to communicate with Substrate
@@ -57,13 +51,6 @@ export interface Claim {
 
 export interface FullClaimData extends Claim {
     lockEvent: LockEvent;
-    claimedAddress: string;
+    claimedAddress: string; // PLM address
     isIntroducer: boolean;
-}
-
-export interface AffiliatedAddress {
-    ethAddress: string;
-    plmAddress?: string; // this should default to Plasm ECDSA address
-    locks: FullClaimData[]; // lock references if the affiliate has locked themselves
-    references: FullClaimData[];
 }
