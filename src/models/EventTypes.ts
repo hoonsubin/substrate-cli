@@ -41,7 +41,7 @@ export interface Lockdrop {
     transactionHash: H256; //H256
     publicKey: U8aFixed; // [u8; 33]
     duration: u64; // u64
-    value: u128; // u128
+    value: u128;
 }
 
 export interface Claim {
@@ -51,13 +51,16 @@ export interface Claim {
     claimId: string;
     approve: BTreeSet<AuthorityId>;
     decline: BTreeSet<AuthorityId>;
-    amount: u128; // u128
+    amount: u128;
     complete: boolean;
 }
 
+export interface FullClaimData extends Claim {
+    lockEvent: LockEvent;
+}
+
 export interface ClaimResult {
-    claimData: Claim;
+    claimData: FullClaimData;
     claimedAddress: string;
-    introducer: string;
-    isIntroducer?: boolean;
+    isIntroducer: boolean;
 }

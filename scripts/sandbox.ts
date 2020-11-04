@@ -1,5 +1,5 @@
 import { SubscanApi } from '../src/models/SubscanTypes';
-import { LockEvent, Claim, LockdropType } from '../src/models/EventTypes';
+import { LockEvent, ClaimResult, FullClaimData, LockdropType } from '../src/models/EventTypes';
 import _ from 'lodash';
 import * as PlasmUtils from '../src/helper/plasmUtils';
 import PlasmConnect from '../src/helper/plasmApi';
@@ -14,6 +14,11 @@ import allClaimData from './data/claim-params.json';
 const network: PlasmUtils.NodeEndpoint = 'Main';
 const plasmApi = new PlasmConnect(network);
 
+// cast types for loaded JSON files
+const cachedClaimData = (allClaimData as unknown) as FullClaimData[];
+const cachedClaimCompleteEv = (claims as unknown) as SubscanApi.Event[];
+const cachedLockEvents = (locks as unknown) as LockEvent[];
+
 const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
     const eventValue = eventList.params.find((i) => i.type === type)?.value;
     if (!eventValue) throw new Error('Could not find type ' + type);
@@ -21,17 +26,25 @@ const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
 };
 
 const getClaimedTime = (claimId: string) => {
-    const eventTime = _.find(claims as SubscanApi.Event[], (i) => {
+    const eventTime = _.find(cachedClaimCompleteEv, (i) => {
         return getEventParamValue(i, 'ClaimId') === claimId;
     });
+    if (!eventTime) throw new Error('Could not fetch event time for ' + claimId);
     return {
         blockNumber: eventTime.block_num,
         timestamp: eventTime.block_timestamp,
     };
 };
 
-const getClaimData = async (claimId: string) => {
-    console.log('fetching claim data from chain...');
+const getLockContractEvent = (transactionHash: string) => {
+    const ethLog = _.find(cachedLockEvents, (lock) => {
+        return lock.transactionHash === transactionHash;
+    }) as LockEvent;
+    if (!ethLog) throw new Error('Could not find contract event with the tx hash of ' + transactionHash);
+    return ethLog;
+};
+
+const getFullClaimData = async (claimId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const claim = (await plasmApi.api.query.plasmLockdrop.claims(PolkadotUtils.hexToU8a(claimId))) as LockdropClaim;
     const { params } = claim;
@@ -51,13 +64,21 @@ const getClaimData = async (claimId: string) => {
         decline: claim.decline,
         amount: claim.amount,
         complete: claim.complete.toHuman(),
-    } as Claim;
+        lockEvent: getLockContractEvent(params.transaction_hash.toHex()),
+    } as FullClaimData;
+};
+
+const cacheObject = <T>(data: T, name?: string, path?: string) => {
+    console.log('writing the data locally...');
+    const dirName = `${path || __dirname}/${name || 'response'}.json`;
+    fs.writeFileSync(dirName, JSON.stringify(data));
 };
 
 // script entry point
 (async () => {
     await plasmApi.start();
-    const claimIdList = _.map(claims as SubscanApi.Event[], (claim) => {
+
+    const claimIdList = _.map(cachedClaimCompleteEv, (claim) => {
         const claimId = getEventParamValue(claim, 'ClaimId');
         const claimedAddress = getEventParamValue(claim, 'AccountId');
         const amount = getEventParamValue(claim, 'Balance');
@@ -68,27 +89,26 @@ const getClaimData = async (claimId: string) => {
         };
     });
 
-    const claimParams = allClaimData as { claimData: Claim; claimedAddress: string }[];
-
-    // only get locks with a valid introducer
-    const locksWithAff = _.filter(locks as LockEvent[], (lock) => {
-        return isValidIntroducerAddress(lock.introducer);
-    });
-
-    const claimsWithAff = _.map(claimParams, (i) => {
-        // filter claims with an introducer address
-        const _claimsWithAff = _.filter(claimParams, (claim) => {
-            const hasAff = _.find(locksWithAff, (i) => {
-                return i.transactionHash === claim.claimData.params.transactionHash.toHex();
-            });
-            return !!hasAff;
+    // append introducer checks
+    const locksWithAff = _.map(cachedClaimData, (claim) => {
+        const lockOwner = claim.lockEvent.lockOwner;
+        const claimedEvent = _.find(claimIdList, (i) => {
+            return i.claimId === claim.claimId;
         });
+
+        const isIntroducer = isValidIntroducerAddress(lockOwner);
+
+        if (!lockOwner) throw new Error('No introducer found for claim ' + claim.claimId);
+        if (!claimedEvent) throw new Error('No claimed event was found for ' + claim.claimId);
+
+        return {
+            claimData: claim,
+            isIntroducer,
+            claimedAddress: claimedEvent.claimedAddress,
+        } as ClaimResult;
     });
 
-    //console.log(claimsWithAff);
-    console.log('writing the data locally...');
-    const resFile = `${__dirname}/response.json`;
-    fs.writeFileSync(resFile, JSON.stringify(locksWithAff));
+    cacheObject(locksWithAff, 'claim-result');
     console.log('finished');
     process.exit(0);
 })().catch((err) => {

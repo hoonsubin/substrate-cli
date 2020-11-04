@@ -1,6 +1,6 @@
 import _ from 'lodash';
 // the default introducer address when none is provided by the user
-const defaultAddress = '0x0000000000000000000000000000000000000000';
+export const defaultAddress = '0x0000000000000000000000000000000000000000';
 
 export const affiliationRate = 0.01;
 
@@ -313,12 +313,7 @@ const specialCommunityCommitter = [
     '0x3937B5F83f8e3DB413bD202bAf4da5A64879690F', // Korean lockdrop manual translator + community manager
 ];
 
-export const validEthAddressList = [
-    ...firstEthIntroducer,
-    ...secondEthIntroducer,
-    ...specialCommunityCommitter,
-    defaultAddress,
-];
+export const validEthAddressList = [...firstEthIntroducer, ...secondEthIntroducer, ...specialCommunityCommitter];
 
 /**
  * Checks if the given introducer address is listed as a valid introducer for the lockdrop
