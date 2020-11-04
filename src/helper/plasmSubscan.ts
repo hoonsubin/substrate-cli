@@ -42,5 +42,14 @@ export async function fetchPlasmEvents(
         }
     }
 
-    return events;
+    const allEvents = events.map((ev: any) => {
+        // params is returned as a json string, so we explicitly convert that to an object
+        const params = JSON.parse(ev.params) as SubscanApi.EventParam[];
+        return {
+            ...ev,
+            params,
+        } as SubscanApi.Event;
+    });
+
+    return allEvents;
 }

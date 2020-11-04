@@ -196,8 +196,9 @@ export default class PlasmConnect {
      * This function will return undefined if the claim data does not exists on the chain.
      * @param api Polkadot-js API instance
      * @param claimId real-time lockdrop claim ID
+     * @param blockHash which block it should look for (for timestamp)
      */
-    public async getClaimData(claimId: Uint8Array | H256, blockHash: Hash): Promise<Claim | null> {
+    public async getClaimData(claimId: Uint8Array | H256, blockHash?: Hash): Promise<Claim | null> {
         const api = this._apiInst;
 
         const blockData = (await api.rpc.chain.getBlock(blockHash)).block;
@@ -239,10 +240,6 @@ export default class PlasmConnect {
         }
 
         return data;
-    }
-
-    public async fetchClaimComplete(startFrom?: number) {
-        const api = this._apiInst;
     }
 
     /**

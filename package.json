@@ -10,7 +10,7 @@
         "fetch:eth-main": "ts-node -r dotenv/config scripts/cacheLockEvents.ts mainnet",
         "fetch:claims": "ts-node -r dotenv/config scripts/cacheClaimEvents.ts",
         "fetch:all": "yarn run fetch:eth-test && yarn run fetch:eth-main && yarn run fetch:claims",
-        "node:sandbox": "ts-node -r dotenv/config scripts/sandbox.ts"
+        "sandbox": "ts-node -r dotenv/config scripts/sandbox.ts"
     },
     "license": "MIT",
     "devDependencies": {
