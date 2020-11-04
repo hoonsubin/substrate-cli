@@ -57,10 +57,13 @@ export interface Claim {
 
 export interface FullClaimData extends Claim {
     lockEvent: LockEvent;
-}
-
-export interface ClaimResult {
-    claimData: FullClaimData;
     claimedAddress: string;
     isIntroducer: boolean;
+}
+
+export interface AffiliatedAddress {
+    ethAddress: string;
+    plmAddress?: string; // this should default to Plasm ECDSA address
+    locks: FullClaimData[]; // lock references if the affiliate has locked themselves
+    references: FullClaimData[];
 }

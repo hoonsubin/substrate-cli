@@ -313,7 +313,12 @@ const specialCommunityCommitter = [
     '0x3937B5F83f8e3DB413bD202bAf4da5A64879690F', // Korean lockdrop manual translator + community manager
 ];
 
-export const validEthAddressList = [...firstEthIntroducer, ...secondEthIntroducer, ...specialCommunityCommitter];
+export const validEthAddressList = [
+    ...firstEthIntroducer,
+    ...secondEthIntroducer,
+    ...specialCommunityCommitter,
+    defaultAddress,
+];
 
 /**
  * Checks if the given introducer address is listed as a valid introducer for the lockdrop
