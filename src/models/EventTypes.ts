@@ -1,6 +1,5 @@
 import { u64, u128, U8aFixed, BTreeSet } from '@polkadot/types';
 import { H256, AuthorityId } from '@polkadot/types/interfaces';
-import { BigNumber } from 'bignumber.js';
 
 export interface LockEvent {
     eth: string; // locked value in wei
@@ -17,11 +16,6 @@ export interface LockdropContract {
     type: 'main' | 'ropsten';
     address: string;
     blockHeight: number;
-}
-
-export interface PlasmChainEvent {
-    type: string;
-    value: string;
 }
 
 /**
@@ -59,4 +53,11 @@ export interface Claim {
     decline: BTreeSet<AuthorityId>;
     amount: u128; // u128
     complete: boolean;
+}
+
+export interface ClaimResult {
+    claimData: Claim;
+    claimedAddress: string;
+    introducer: string;
+    isIntroducer?: boolean;
 }
