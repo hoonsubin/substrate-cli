@@ -11,9 +11,16 @@ import locks from './data/eth-main-locks.json';
 import allClaimData from './data/claim-full-data.json';
 import Introducer from '../src/models/LockdropIntroducer';
 import { Utils } from '../src/helper';
+import KeyringPair from '@polkadot/keyring';
+import { Keyring } from '@polkadot/api';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
 const plasmApi = new PlasmConnect(network);
+
+interface PlmTransaction {
+    receiverAddress: string;
+    sendAmount: string; // femto
+}
 
 const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
     const eventValue = eventList.params.find((i) => i.type === type)?.value;
@@ -74,6 +81,19 @@ const fetchAllClaims = async (lockEvents: LockEvent[], claimEvents: SubscanApi.E
     });
 
     return appendData;
+};
+
+const sendBatchTransaction = async (transactionList: PlmTransaction[], senderSeed: string) => {
+    const keyring = new Keyring({ type: 'sr25519' });
+    const origin = keyring.addFromSeed(PolkadotUtils.hexToU8a(senderSeed));
+
+    const txVec = _.map(transactionList, (tx) => {
+        return plasmApi.api.tx.balances.transfer(tx.receiverAddress, tx.sendAmount);
+    });
+
+    //const txHash = await plasmApi.api.tx.balances.
+    const res = await plasmApi.api.tx.utility.batch(txVec).signAndSend(origin);
+    return res;
 };
 
 const getLocksWithIntroducer = (claimList: FullClaimData[], affAddress?: string) => {
