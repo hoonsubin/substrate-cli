@@ -196,15 +196,16 @@ export default class PlasmConnect {
      * This function will return undefined if the claim data does not exists on the chain.
      * @param api Polkadot-js API instance
      * @param claimId real-time lockdrop claim ID
+     * @param blockHash which block it should look for (for timestamp)
      */
-    public async getClaimData(claimId: Uint8Array | H256, blockHash: Hash): Promise<Claim | null> {
+    public async getClaimData(claimId: Uint8Array | H256, blockHash?: Hash): Promise<Claim | null> {
         const api = this._apiInst;
 
         const blockData = (await api.rpc.chain.getBlock(blockHash)).block;
         const blockNumber = blockData.header.number.unwrap().toNumber();
         const timestamp = blockData.extrinsics.find((i) => {
             return i.method.section === 'timestamp';
-        }).method.args[0] as Moment;
+        })!.method.args[0] as Moment;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const claim = (await api.query.plasmLockdrop.claims(claimId)) as any;
@@ -251,7 +252,7 @@ export default class PlasmConnect {
         const maxRequests = 2500;
 
         // start from the given block number, or at the beginning of the lockdrop
-        const startBlock = startFrom || (await api.query.plasmLockdrop.lockdropBounds())[0].toNumber();
+        const startBlock = startFrom || ((await api.query.plasmLockdrop.lockdropBounds()) as any).toNumber();
 
         console.log('Starting from block ' + startBlock);
 
@@ -322,13 +323,14 @@ export default class PlasmConnect {
         console.log(`Fetching claim params and timestamping them...\n`);
         const fetchTimeStampPrg = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
         fetchTimeStampPrg.start(claimEvents.length, 0);
+
         const blocks = await Promise.all(
             claimEvents.map(async (i, index) => {
                 const _block = (await api.rpc.chain.getBlock(i.blockHash)).block;
                 const blockNumber = _block.header.number.unwrap().toNumber();
                 const timestamp = _block.extrinsics.find((i) => {
                     return i.method.section === 'timestamp';
-                }).method.args[0] as Moment;
+                })!.method.args[0] as Moment;
                 const claimData = (await api.query.plasmLockdrop.claims(
                     polkadotUtils.hexToU8a(i.claimId),
                 )) as LockdropClaim;

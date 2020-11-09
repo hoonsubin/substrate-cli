@@ -4,7 +4,7 @@ import { Claim } from '../models/EventTypes';
 
 export async function fetchAllClaimData(plasmApi: PlasmConnect, prevEvents: Claim[] = []) {
     // fetch from the highest blocknumber in cache
-    let reqEvents = await plasmApi.fetchClaimRequestCall(prevEvents.length > 0 && prevEvents[0].blockNumber);
+    let reqEvents = await plasmApi.fetchClaimRequestCall(prevEvents[0].blockNumber);
 
     reqEvents = reqEvents.concat(prevEvents);
 

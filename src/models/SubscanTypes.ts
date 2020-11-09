@@ -6,10 +6,16 @@ export declare namespace SubscanApi {
         extrinsic_idx: number;
         module_id: string;
         event_id: string;
-        params: string; // JSON string
+        params: EventParam[]; // JSON string
         event_idx: number;
         extrinsic_hash: string;
         block_timestamp: number;
+    }
+
+    export interface EventParam {
+        type: string;
+        value: string;
+        value_raw: string;
     }
 
     export interface Data {
@@ -24,16 +30,16 @@ export declare namespace SubscanApi {
         data: Data;
     }
 
-    export interface EventParam {
-        type: string;
-        value: string;
-        value_raw: string;
-    }
-
     export interface ClaimReqEvent {
         blockNumber: number;
         timestamp: number;
         claimId: string;
         eventIndex: string;
+    }
+
+    export interface ClaimCompleteEvent {
+        claimId: string;
+        accountId: string;
+        balance: string;
     }
 }

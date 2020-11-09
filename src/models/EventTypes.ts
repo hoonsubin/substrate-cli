@@ -1,6 +1,5 @@
 import { u64, u128, U8aFixed, BTreeSet } from '@polkadot/types';
 import { H256, AuthorityId } from '@polkadot/types/interfaces';
-import { BigNumber } from 'bignumber.js';
 
 export interface LockEvent {
     eth: string; // locked value in wei
@@ -19,23 +18,12 @@ export interface LockdropContract {
     blockHeight: number;
 }
 
-export interface PlasmChainEvent {
-    type: string;
-    value: string;
-}
-
 /**
  * The lockdrop lock token type. This is used for the real-time lockdrop module
  */
 export enum LockdropType {
     Bitcoin,
     Ethereum,
-}
-
-export interface ClaimReq {
-    claimId: string;
-    blockNumber: number;
-    timestamp: number;
 }
 
 /**
@@ -47,7 +35,7 @@ export interface Lockdrop {
     transactionHash: H256; //H256
     publicKey: U8aFixed; // [u8; 33]
     duration: u64; // u64
-    value: u128; // u128
+    value: u128;
 }
 
 export interface Claim {
@@ -57,6 +45,12 @@ export interface Claim {
     claimId: string;
     approve: BTreeSet<AuthorityId>;
     decline: BTreeSet<AuthorityId>;
-    amount: u128; // u128
+    amount: u128;
     complete: boolean;
+}
+
+export interface FullClaimData extends Claim {
+    lockEvent: LockEvent;
+    claimedAddress: string; // PLM address
+    isIntroducer: boolean;
 }

@@ -2,13 +2,22 @@
     "compilerOptions": {
         "module": "commonjs",
         "esModuleInterop": true,
-        "target": "es6",
+        "target": "es2015",
+        "lib": ["es6"],
         "moduleResolution": "node",
         "sourceMap": true,
         "outDir": "dist",
-        "resolveJsonModule": true
+        "strict": true,
+        "strictNullChecks": true,
+        "rootDir": ".",
+        "resolveJsonModule": true,
+        "emitDecoratorMetadata": true,
+        "experimentalDecorators": true,
+        // we set this to false because of TypeORM entity decorators
+        "strictPropertyInitialization": false,
+        "removeComments": true
     },
     "lib": ["es2015"],
     "include": ["src/**/*"],
-    "exclude": ["node_modules", "build", "dist"]
+    "exclude": ["node_modules", "build", "dist", "scripts", "tests", "public"]
 }

@@ -42,3 +42,8 @@ export function loadCache<T>(jsonDir: string) {
         return new Array<T>();
     }
 }
+
+export function writeCache<T>(data: T, name?: string, path?: string) {
+    const dirName = `${path || process.cwd()}/${name || 'response'}.json`;
+    fs.writeFileSync(dirName, JSON.stringify(data));
+}
