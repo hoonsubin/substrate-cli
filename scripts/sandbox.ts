@@ -11,7 +11,6 @@ import locks from './data/eth-main-locks.json';
 import allClaimData from './data/claim-full-data.json';
 import Introducer from '../src/models/LockdropIntroducer';
 import { Utils } from '../src/helper';
-import KeyringPair from '@polkadot/keyring';
 import { Keyring } from '@polkadot/api';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';

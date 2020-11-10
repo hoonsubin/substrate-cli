@@ -7,7 +7,6 @@ import { Contract } from 'web3-eth-contract';
 import Web3 from 'web3';
 import ContractAbi from '../contracts/Lockdrop.json';
 import { getJsonRequest, wait } from './utils';
-import moment from 'moment';
 
 // we import with the require method due to an error with the lib
 const Web3EthAbi = require('web3-eth-abi');
@@ -69,6 +68,17 @@ async function fetchLockdropEventsEtherscan(
     });
 
     return Promise.all(lockEvents);
+}
+
+/**
+ * Obtains the Ethereum address from an uncompressed public key hex string
+ * @param publicKey uncompressed public key
+ */
+export function getAddressFromPublic(publicKey: string) {
+    const hash = Web3.utils.keccak256(publicKey);
+    const address = '0x' + hash.slice(24 + 2);
+
+    return address;
 }
 
 /**
