@@ -5,7 +5,7 @@ import * as polkadotUtilCrypto from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
 import { u8aConcat } from '@polkadot/util';
 import { Struct, TypeRegistry, u64, u128, U8aFixed, u8 } from '@polkadot/types';
-import { LockdropType, Claim, Lockdrop, LockEvent } from '../models/EventTypes';
+import { LockdropType, Claim, Lockdrop, LockEvent } from '../model/EventTypes';
 
 /**
  * Plasm Network node endpoint type

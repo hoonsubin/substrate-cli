@@ -1,10 +1,11 @@
 import fs from 'fs';
-import { EthLockdrop, Utils } from '../src/helper';
-import { firstLockContract, secondLockContract } from '../src/data/lockdropContracts';
+import { EthLockdrop, Utils } from '../helper';
+import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
 import Web3 from 'web3';
-import { LockEvent } from '../src/models/EventTypes';
+import { LockEvent } from '../model/EventTypes';
 import path from 'path';
 
+// get network flag from user
 const networkType = process.argv[2].match('mainnet') ? 'mainnet' : 'ropsten';
 
 const web3 = new Web3(EthLockdrop.infuraHttpProvider(networkType));
@@ -29,7 +30,7 @@ async function updateLockdropCache(web3: Web3, contractAddress: string) {
 }
 
 // script entry point
-(async () => {
+export default (async () => {
     const chainName = await web3.eth.net.getNetworkType();
     const _contracts = [...firstLockContract, ...secondLockContract].filter((i) => {
         return i.type === chainName;

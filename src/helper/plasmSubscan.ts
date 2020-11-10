@@ -1,4 +1,4 @@
-import { SubscanApi } from '../models/SubscanTypes';
+import { SubscanApi } from '../model/SubscanTypes';
 import { postJsonRequest } from './utils';
 
 const SUBSCAN_ENDPOINT = 'https://plasm.subscan.io/api/scan/events';

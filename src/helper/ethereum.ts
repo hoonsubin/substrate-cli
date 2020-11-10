@@ -1,11 +1,10 @@
-import { EtherScanApi } from '../models/EtherScanTypes';
+import { EtherScanApi } from '../model/EtherScanTypes';
 import _ from 'lodash';
-import { LockEvent } from '../models/EventTypes';
+import { LockEvent } from '../model/EventTypes';
 import Web3Utils from 'web3-utils';
 import { firstLockContract, secondLockContract } from '../data/lockdropContracts';
-import { Contract } from 'web3-eth-contract';
 import Web3 from 'web3';
-import ContractAbi from '../contracts/Lockdrop.json';
+import ContractAbi from '../data/contracts/Lockdrop.json';
 import { getJsonRequest, wait } from './utils';
 
 // we import with the require method due to an error with the lib

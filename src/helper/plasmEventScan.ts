@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import PlasmConnect from './plasmApi';
-import { Claim } from '../models/EventTypes';
+import { Claim } from '../model/EventTypes';
 
 export async function fetchAllClaimData(plasmApi: PlasmConnect, prevEvents: Claim[] = []) {
     // fetch from the highest blocknumber in cache
