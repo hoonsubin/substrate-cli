@@ -1,8 +1,8 @@
-import { PlasmEventScan, Utils, PlasmUtils } from '../src/helper';
+import { PlasmEventScan, Utils, PlasmUtils } from '../helper';
 import fs from 'fs';
-import PlasmConnect from '../src/helper/plasmApi';
-import { Claim } from '../src/models/EventTypes';
-import { PlasmSubscan } from '../src/helper';
+import PlasmConnect from '../helper/plasmApi';
+import { Claim } from '../model/EventTypes';
+import { PlasmSubscan } from '../helper';
 import _ from 'lodash';
 
 const network: PlasmUtils.NodeEndpoint = 'Main';
@@ -74,7 +74,7 @@ async function fetchClaimComplete() {
 }
 
 // script entry point
-(async () => {
+export default (async () => {
     console.log('Fetching Plasm chain events...');
     await fetchClaimComplete();
 })()

@@ -1,4 +1,4 @@
-import { LockdropContract } from '../models/EventTypes';
+import { LockdropContract } from '../model/EventTypes';
 
 export const firstLockContract: LockdropContract[] = [
     {

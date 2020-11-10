@@ -1,12 +1,9 @@
-# Lockdrop cache server
+# Plasm Scripts
 
-This is a read-only server that stores and filters blockchain data for the lockdrop UI.
-This is done to prevent any client-side errors for future lockdrops.
+This is a multi-purpose CLI tool for quickly interacting with Plasm Network from ts-node.
+This project was made to test and organize various features at a fast paste in both Plasm Network and Polkadot-js without having to create a UI.
 
-## Usage
-
-This server application requires you to have an Inura project key in order to fetch lock events.
-The API keys should be stored on the `.env` file.
+By default, script calls from yarn will use the dotenv package, so if you want to access Ethereum blocks, you will need to provide your Infura credentials in the `.env` file.
 
 ```env
 NODE_ENV=development
@@ -15,22 +12,13 @@ INFURA_SECRETE=<your secrete>
 INFURA_PROJ_ID=<your project ID>
 ```
 
-```bash
-# install dependencies
-yarn
+## Project Structure
 
-# start server
-yarn start
+Everything that is directly related to the tool's functionality will be inside the `src/` folder.
+`yarn start` will execute `index.ts`, which contains what ever script you imported inside the `cli/` folder.
 
-# build mainnet Ethereum cache
-yarn fetch:eth-main
-
-# build Ropsten Ethereum cache
-yarn fetch:eth-test
-
-# build plasm mainnet claim request cache
-yarn fetch:claims
-
-# build cache for everything
-yarn fetch:all
-```
+- `cli/`: The main tool logic. Everything you want to execute should be in here.
+- `data/`: Cached data, account data, any fixed peace of data will be placed in here, and it is recommended that all local data read/writes within a cli function points their directory to this folder.
+- `helper/`: All utility functions that is used throughout different cli functions should be placed here.
+- `model/`: Data models used internally and from external APIs should be defined here.
+- `type/`: This is a special folder that contains the global type declarations, for example, importing `.csv` files as string within TypeScript.

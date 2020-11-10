@@ -1,16 +1,16 @@
-import { SubscanApi } from '../src/models/SubscanTypes';
-import { LockEvent, FullClaimData, LockdropType } from '../src/models/EventTypes';
+import { SubscanApi } from '../model/SubscanTypes';
+import { LockEvent, FullClaimData, LockdropType } from '../model/EventTypes';
 import _ from 'lodash';
-import * as PlasmUtils from '../src/helper/plasmUtils';
-import PlasmConnect from '../src/helper/plasmApi';
+import * as PlasmUtils from '../helper/plasmUtils';
+import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
 import { Claim as LockdropClaim } from '@plasm/types/interfaces';
-import { defaultAddress, isValidIntroducerAddress } from '../src/data/affiliationAddress';
-import claims from './data/claim-complete.json';
-import locks from './data/eth-main-locks.json';
-import allClaimData from './data/claim-full-data.json';
-import Introducer from '../src/models/LockdropIntroducer';
-import { Utils } from '../src/helper';
+import { defaultAddress, isValidIntroducerAddress } from '../data/affiliationAddress';
+import claims from '../data/claim-complete.json';
+import locks from '../data/eth-main-locks.json';
+import allClaimData from '../data/claim-full-data.json';
+import Introducer from '../model/LockdropIntroducer';
+import { Utils } from '../helper';
 import { Keyring } from '@polkadot/api';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
@@ -131,7 +131,7 @@ const getAllIntroducers = (claimList: FullClaimData[]) => {
 };
 
 // script entry point
-(async () => {
+export default (async () => {
     // cast types for loaded JSON files
     const cachedClaimCompleteEv = (claims as unknown) as SubscanApi.Event[];
     const cachedLockEvents = (locks as unknown) as LockEvent[];
@@ -146,7 +146,7 @@ const getAllIntroducers = (claimList: FullClaimData[]) => {
 
     const introducers = getAllIntroducers(cachedClaimData);
 
-    Utils.writeCache(introducers, 'introducer-data', __dirname);
+    Utils.writeCache(introducers, 'introducer-data', process.cwd());
 
     console.log('finished');
     process.exit(0);

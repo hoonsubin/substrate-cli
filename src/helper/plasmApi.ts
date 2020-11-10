@@ -8,7 +8,7 @@ import * as cliProgress from 'cli-progress';
 import * as polkadotUtilCrypto from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
 import * as plasmDefinitions from '@plasm/types/interfaces/definitions';
-import { Claim, Lockdrop, LockdropType } from '../models/EventTypes';
+import { Claim, Lockdrop, LockdropType } from '../model/EventTypes';
 // it is not good to import a type from a function script
 // todo: refactor this to have a dedicated types folder
 import { createLockParam, femtoToPlm, NodeEndpoint } from './plasmUtils';
