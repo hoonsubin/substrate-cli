@@ -43,10 +43,10 @@ export default class Introducer {
     }
 
     public get totalBonusToRefs() {
-        return this._totalBonus.multipliedBy(this.bonusRate);
+        return new BigNumber(this._totalBonus).multipliedBy(this.bonusRate);
     }
 
-    private _totalBonus: BigNumber;
+    private _totalBonus: string;
 
     private _calculateTotalBonus() {
         const totalBonus = _.reduce(
@@ -60,6 +60,6 @@ export default class Introducer {
             new BigNumber(0),
         );
 
-        return totalBonus;
+        return totalBonus.toFixed();
     }
 }

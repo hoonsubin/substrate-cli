@@ -1,5 +1,6 @@
 import { SubscanApi } from '../model/SubscanTypes';
 import { LockEvent, FullClaimData, LockdropType } from '../model/EventTypes';
+import { PlmTransaction, AffiliationReward, ReferenceReward } from '../model/AffiliateReward';
 import _ from 'lodash';
 import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
@@ -13,14 +14,10 @@ import { Utils, EthLockdrop, PlasmUtils } from '../helper';
 import { Keyring } from '@polkadot/api';
 import path from 'path';
 import EthCrypto from 'eth-crypto';
+import BigNumber from 'bignumber.js';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
 const plasmApi = new PlasmConnect(network);
-
-interface PlmTransaction {
-    receiverAddress: string;
-    sendAmount: string; // femto
-}
 
 const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
     const eventValue = eventList.params.find((i) => i.type === type)?.value;
@@ -131,6 +128,29 @@ const getAllIntroducers = (claimList: FullClaimData[]) => {
     return introducers;
 };
 
+const knownPlmAddress = [
+    {
+        ethAddr: '0x9498db340a3ecab7bb0973ee36e95e58c8e58a41',
+        plmAddr: 'Xp5rb4ioj84w8CUL2hZ95BGih4AT1NVDt1av6hZwKrR8n8t',
+    },
+    {
+        ethAddr: '0xF22b286fdA7369255376742f360fFCEE4e1FBD42',
+        plmAddr: 'Zw2EAFAXyeNwzzC6FS5baNMADcUExShmPTBk3UAbH8VtNoU',
+    },
+    {
+        ethAddr: '0x55763D6dB54736084c1B8d010Aa1d99F0DC6d07C',
+        plmAddr: 'aQUgPgajuzeEgk1FEbpNCDhCd9seUftaXQ7hrXWdoXnCUkf',
+    },
+    {
+        ethAddr: '0x9F4f9E15a4A963a9a3885979Cc64B326dCAa18A8',
+        plmAddr: 'VxwWY69vTJ4chHoaEfHaUVSQ3BeJNtLFYByhKaRPefujSz6',
+    },
+    {
+        ethAddr: '0x1080355C93A1B4c0Dd3c340Eed4f7E514c583077',
+        plmAddr: 'YwnuNtrGcHa7jxz4jLibeCxxrqKcrUurYAjM2GTLVPr3Kbf',
+    },
+];
+
 const getPlmAddrFromPubKey = (introducerEthAddr: string, unCompPubKey: string[]) => {
     const pubKey = _.find(unCompPubKey, (i) => {
         const ethAddr = EthCrypto.publicKey.toAddress(EthCrypto.publicKey.compress(i.replace('0x', '')));
@@ -139,10 +159,20 @@ const getPlmAddrFromPubKey = (introducerEthAddr: string, unCompPubKey: string[])
     if (!pubKey) {
         //throw new Error('Failed to find public key for address ' + introducerEthAddr);
         console.warn('Cannot find pub key for ' + introducerEthAddr);
-        return '';
+        // cross reference from known addresses
+        return _.find(knownPlmAddress, (i) => i.ethAddr === introducerEthAddr)?.plmAddr || introducerEthAddr;
     }
 
     return PlasmUtils.generatePlmAddress(EthCrypto.publicKey.compress(pubKey.replace('0x', '')));
+};
+
+const getRewardAmount = (introducer: Introducer) => {
+    const allRefLocks = introducer.locks.concat(introducer.references);
+    const refRewards = _.map(allRefLocks, (lock) => {
+        const lockReward = new BigNumber((lock.amount as unknown) as string);
+        // todo: hash the claim address to be substrate compatible
+        const receivingPlmAddress = lock.claimedAddress;
+    });
 };
 
 // script entry point
