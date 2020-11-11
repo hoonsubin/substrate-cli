@@ -2,6 +2,11 @@
 
 import * as scripts from './cli';
 
-(() => {
-    scripts.AffiliationBonus;
-})();
+(async () => {
+    await scripts.AffiliationBonus();
+
+    process.exit(0);
+})().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

@@ -74,14 +74,7 @@ async function fetchClaimComplete() {
 }
 
 // script entry point
-export default (async () => {
+export default async () => {
     console.log('Fetching Plasm chain events...');
     await fetchClaimComplete();
-})()
-    .catch((err) => {
-        console.error(err);
-    })
-    .finally(async () => {
-        const api = plasmApi.api;
-        api.disconnect();
-    });
+};

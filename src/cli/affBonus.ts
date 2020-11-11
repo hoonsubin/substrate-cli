@@ -1,7 +1,6 @@
 import { SubscanApi } from '../model/SubscanTypes';
 import { LockEvent, FullClaimData, LockdropType } from '../model/EventTypes';
 import _ from 'lodash';
-import * as PlasmUtils from '../helper/plasmUtils';
 import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
 import { Claim as LockdropClaim } from '@plasm/types/interfaces';
@@ -10,8 +9,10 @@ import claims from '../data/claim-complete.json';
 import locks from '../data/eth-main-locks.json';
 import allClaimData from '../data/claim-full-data.json';
 import Introducer from '../model/LockdropIntroducer';
-import { Utils } from '../helper';
+import { Utils, EthLockdrop, PlasmUtils } from '../helper';
 import { Keyring } from '@polkadot/api';
+import path from 'path';
+import EthCrypto from 'eth-crypto';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
 const plasmApi = new PlasmConnect(network);
@@ -130,8 +131,22 @@ const getAllIntroducers = (claimList: FullClaimData[]) => {
     return introducers;
 };
 
+const getPlmAddrFromPubKey = (introducerEthAddr: string, unCompPubKey: string[]) => {
+    const pubKey = _.find(unCompPubKey, (i) => {
+        const ethAddr = EthCrypto.publicKey.toAddress(EthCrypto.publicKey.compress(i.replace('0x', '')));
+        return ethAddr === introducerEthAddr;
+    });
+    if (!pubKey) {
+        //throw new Error('Failed to find public key for address ' + introducerEthAddr);
+        console.warn('Cannot find pub key for ' + introducerEthAddr);
+        return '';
+    }
+
+    return PlasmUtils.generatePlmAddress(EthCrypto.publicKey.compress(pubKey.replace('0x', '')));
+};
+
 // script entry point
-export default (async () => {
+export default async () => {
     // cast types for loaded JSON files
     const cachedClaimCompleteEv = (claims as unknown) as SubscanApi.Event[];
     const cachedLockEvents = (locks as unknown) as LockEvent[];
@@ -139,18 +154,23 @@ export default (async () => {
     // this contains both the lock event and the claim event
     const cachedClaimData = (allClaimData as unknown) as FullClaimData[];
 
-    // we only need this when we're calling a function that uses it
-    // await plasmApi.start();
-    // const fullData = await fetchAllClaims(cachedLockEvents, cachedClaimCompleteEv);
-    // cacheObject(fullData, 'claims-with-aff');
+    const firstLdPubKeys = (await Utils.loadCsv(path.join(process.cwd(), 'src', 'data', 'first-participant.csv'))).map(
+        (i) => i.publicKey,
+    );
 
     const introducers = getAllIntroducers(cachedClaimData);
 
-    Utils.writeCache(introducers, 'introducer-data', process.cwd());
+    const introducerAddrs = introducers.map((intro) => {
+        if (intro.locks.length > 0)
+            return PlasmUtils.generatePlmAddress((intro.locks[0].params.publicKey as unknown) as string);
+        return getPlmAddrFromPubKey(intro.ethAddress, firstLdPubKeys);
+    });
+
+    introducerAddrs.forEach((i) => {
+        console.log(i);
+    });
+
+    //Utils.writeCache(introducers, 'introducer-data', process.cwd());
 
     console.log('finished');
-    process.exit(0);
-})().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+};

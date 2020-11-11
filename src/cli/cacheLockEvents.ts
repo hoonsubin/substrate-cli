@@ -6,7 +6,7 @@ import { LockEvent } from '../model/EventTypes';
 import path from 'path';
 
 // get network flag from user
-const networkType = process.argv[2].match('mainnet') ? 'mainnet' : 'ropsten';
+const networkType = 'mainnet';
 
 const web3 = new Web3(EthLockdrop.infuraHttpProvider(networkType));
 
@@ -30,7 +30,7 @@ async function updateLockdropCache(web3: Web3, contractAddress: string) {
 }
 
 // script entry point
-export default (async () => {
+export default async () => {
     const chainName = await web3.eth.net.getNetworkType();
     const _contracts = [...firstLockContract, ...secondLockContract].filter((i) => {
         return i.type === chainName;
@@ -53,6 +53,4 @@ export default (async () => {
             continue;
         }
     }
-})().catch((err) => {
-    console.log(err);
-});
+};

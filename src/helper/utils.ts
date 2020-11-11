@@ -1,5 +1,5 @@
 import fetch from 'node-fetch';
-import { LockEvent } from '../model/EventTypes';
+import neatCsv from 'neat-csv';
 import fs from 'fs';
 
 /**
@@ -46,4 +46,16 @@ export function loadCache<T>(jsonDir: string) {
 export function writeCache<T>(data: T, name?: string, path?: string) {
     const dirName = `${path || process.cwd()}/${name || 'response'}.json`;
     fs.writeFileSync(dirName, JSON.stringify(data));
+}
+
+/**
+ * Reads a local CSV file and returns a list of key-value pairs
+ * @param csvDir location of the csv file to parse
+ */
+export async function loadCsv(csvDir: string) {
+    const data = fs.readFileSync(csvDir);
+
+    const content: { [key: string]: string }[] = await neatCsv(data);
+
+    return content;
 }
