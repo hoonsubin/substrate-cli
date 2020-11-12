@@ -154,15 +154,18 @@ const knownPlmAddress = [
         ethAddr: '0x1080355C93A1B4c0Dd3c340Eed4f7E514c583077',
         plmAddr: 'YwnuNtrGcHa7jxz4jLibeCxxrqKcrUurYAjM2GTLVPr3Kbf',
     },
-    { // @rheeunion#0605
+    {
+        // @rheeunion
         ethAddr: '0x3937B5F83f8e3DB413bD202bAf4da5A64879690F',
         plmAddr: 'bUUve83HysJPyXGfbAPcGdV2YujGPVMqZgM61fio4WTrQSs',
     },
-    { // @Rafael
+    {
+        // @Rafael
         ethAddr: '0xf5d7d97b33c4090a8cace5f7c5a1cc54c5740930',
         plmAddr: 'aerRsAR8oK3VwiA1TtaqTbeMc9TMFFVXiuSkb44n3P2PxKn',
     },
-    { // @Jimmy Tudesky - stakenode.dev
+    {
+        // @Jimmy Tudesky
         ethAddr: '0xa451fd5fcc0d389e0c27ff22845c0e17153f7dc8',
         plmAddr: 'bUVmJR3gu1hi9qa41pzFWWfFP4QVUYPyntNKjhort4BPovK',
     },
@@ -173,13 +176,17 @@ const getPlmAddrFromPubKey = async (introducerEthAddr: string, unCompPubKeyListD
 
     const pubKey = _.find(firstLdPubKeys, (i) => {
         const ethAddr = EthCrypto.publicKey.toAddress(EthCrypto.publicKey.compress(i.replace('0x', '')));
-        return ethAddr === introducerEthAddr;
+        return ethAddr.toLowerCase() === introducerEthAddr.toLowerCase();
     });
     if (!pubKey) {
-        //throw new Error('Failed to find public key for address ' + introducerEthAddr);
-        console.warn('Cannot find pub key for ' + introducerEthAddr);
+        const addrFromKnown = _.find(
+            knownPlmAddress,
+            (i) => i.ethAddr.toLowerCase() === introducerEthAddr.toLowerCase(),
+        )?.plmAddr;
+
+        if (!addrFromKnown) console.warn('Cannot find pub key for ' + introducerEthAddr);
         // cross reference from known addresses
-        return _.find(knownPlmAddress, (i) => i.ethAddr === introducerEthAddr)?.plmAddr || 'N/A';
+        return addrFromKnown || 'N/A';
     }
 
     return PlasmUtils.generatePlmAddress(EthCrypto.publicKey.compress(pubKey.replace('0x', '')));
@@ -208,7 +215,7 @@ const getRefRewardAmount = (introducer: Introducer) => {
 
 // script entry point
 export default async () => {
-    const dataSaveFolder = path.join(process.cwd(), 'src', 'data');
+    const dataSaveFolder = path.join(process.cwd(), 'report');
     // cast types for loaded JSON files
     const cachedClaimCompleteEv = (claims as unknown) as SubscanApi.Event[];
     const cachedLockEvents = (locks as unknown) as LockEvent[];
@@ -226,7 +233,7 @@ export default async () => {
             const sendAmount = i.totalBonus;
             const receiverAddress = await getPlmAddrFromPubKey(
                 ethAddress,
-                path.join(dataSaveFolder, 'first-participant.csv'),
+                path.join(process.cwd(), 'src', 'data', 'first-participant.csv'),
             );
             return {
                 ethAddress,
@@ -242,6 +249,7 @@ export default async () => {
     // if (!reserveSeed) throw new Error('Sender seed was not provided');
     // await sendBatchTransaction([...refRewards, ...affRewards], reserveSeed);
 
+    // record the data locally
     Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
 
     Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
