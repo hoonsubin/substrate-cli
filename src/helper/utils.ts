@@ -1,7 +1,8 @@
 import fetch from 'node-fetch';
 import neatCsv from 'neat-csv';
 import fs from 'fs';
-
+import stringify from 'csv-stringify/lib/sync';
+import path from 'path';
 /**
  * a wrapper for node-fetch. Returns the JSON body of the response as string.
  * The body must be a JSON in order for this to work
@@ -43,8 +44,8 @@ export function loadCache<T>(jsonDir: string) {
     }
 }
 
-export function writeCache<T>(data: T, name?: string, path?: string) {
-    const dirName = `${path || process.cwd()}/${name || 'response'}.json`;
+export function writeCache<T>(data: T, name?: string, saveFolder?: string) {
+    const dirName = path.join(saveFolder || process.cwd(), `${name || 'data'}.json`);
     fs.writeFileSync(dirName, JSON.stringify(data));
 }
 
@@ -58,4 +59,14 @@ export async function loadCsv(csvDir: string) {
     const content: { [key: string]: string }[] = await neatCsv(data);
 
     return content;
+}
+
+export function writeCsv<T>(data: T[], name?: string, saveFolder?: string) {
+    const dirName = path.join(saveFolder || process.cwd(), `${name || 'data'}.csv`);
+
+    const csvOutput = stringify(data, {
+        header: true,
+    });
+
+    fs.writeFileSync(dirName, csvOutput);
 }

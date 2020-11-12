@@ -8,6 +8,7 @@ export interface PlmTransaction {
  */
 export interface AffiliationReward extends PlmTransaction {
     ethAddress: string;
+    numberOfRefs: number;
 }
 
 /**
@@ -15,4 +16,6 @@ export interface AffiliationReward extends PlmTransaction {
  */
 export interface ReferenceReward extends PlmTransaction {
     introducer: string;
+    lockTx: string;
+    claimId: string;
 }

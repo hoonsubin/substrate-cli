@@ -151,8 +151,10 @@ const knownPlmAddress = [
     },
 ];
 
-const getPlmAddrFromPubKey = (introducerEthAddr: string, unCompPubKey: string[]) => {
-    const pubKey = _.find(unCompPubKey, (i) => {
+const getPlmAddrFromPubKey = async (introducerEthAddr: string, unCompPubKeyListDir: string) => {
+    const firstLdPubKeys = (await Utils.loadCsv(unCompPubKeyListDir)).map((i) => i.publicKey);
+
+    const pubKey = _.find(firstLdPubKeys, (i) => {
         const ethAddr = EthCrypto.publicKey.toAddress(EthCrypto.publicKey.compress(i.replace('0x', '')));
         return ethAddr === introducerEthAddr;
     });
@@ -160,7 +162,7 @@ const getPlmAddrFromPubKey = (introducerEthAddr: string, unCompPubKey: string[])
         //throw new Error('Failed to find public key for address ' + introducerEthAddr);
         console.warn('Cannot find pub key for ' + introducerEthAddr);
         // cross reference from known addresses
-        return _.find(knownPlmAddress, (i) => i.ethAddr === introducerEthAddr)?.plmAddr || introducerEthAddr;
+        return _.find(knownPlmAddress, (i) => i.ethAddr === introducerEthAddr)?.plmAddr || 'N/A';
     }
 
     return PlasmUtils.generatePlmAddress(EthCrypto.publicKey.compress(pubKey.replace('0x', '')));
@@ -172,13 +174,15 @@ const getRefRewardAmount = (introducer: Introducer) => {
         .concat(introducer.references);
     const refRewards = _.map(allRefLocks, (lock) => {
         const lockReward = new BigNumber((lock.amount as unknown) as string).multipliedBy(introducer.bonusRate);
-        // todo: hash the claim address to be substrate compatible
+
         const receivingPlmAddress = keyring.encodeAddress(PolkadotUtils.hexToU8a('0x' + lock.claimedAddress), 5);
 
         return {
             introducer: lock.lockEvent.introducer,
             receiverAddress: receivingPlmAddress,
             sendAmount: lockReward.toFixed(),
+            lockTx: (lock.params.transactionHash as unknown) as string,
+            claimId: lock.claimId,
         } as ReferenceReward;
     });
 
@@ -187,6 +191,7 @@ const getRefRewardAmount = (introducer: Introducer) => {
 
 // script entry point
 export default async () => {
+    const dataSaveFolder = path.join(process.cwd(), 'src', 'data');
     // cast types for loaded JSON files
     const cachedClaimCompleteEv = (claims as unknown) as SubscanApi.Event[];
     const cachedLockEvents = (locks as unknown) as LockEvent[];
@@ -194,25 +199,36 @@ export default async () => {
     // this contains both the lock event and the claim event
     const cachedClaimData = (allClaimData as unknown) as FullClaimData[];
 
-    const firstLdPubKeys = (await Utils.loadCsv(path.join(process.cwd(), 'src', 'data', 'first-participant.csv'))).map(
-        (i) => i.publicKey,
-    );
-
     const introducers = getAllIntroducers(cachedClaimData);
 
-    const refRewards = _.map(introducers, (i) => getRefRewardAmount(i));
+    const refRewards = _.flatten(_.map(introducers, (i) => getRefRewardAmount(i)));
 
-    // const introducerAddrs = introducers.map((intro) => {
-    //     if (intro.locks.length > 0)
-    //         return PlasmUtils.generatePlmAddress((intro.locks[0].params.publicKey as unknown) as string);
-    //     return getPlmAddrFromPubKey(intro.ethAddress, firstLdPubKeys);
-    // });
+    const affRewards = await Promise.all(
+        _.map(introducers, async (i) => {
+            const ethAddress = i.ethAddress;
+            const sendAmount = i.totalBonus;
+            const receiverAddress = await getPlmAddrFromPubKey(
+                ethAddress,
+                path.join(dataSaveFolder, 'first-participant.csv'),
+            );
+            return {
+                ethAddress,
+                receiverAddress,
+                sendAmount,
+                numberOfRefs: i.references.length,
+            } as AffiliationReward;
+        }),
+    );
 
-    // introducerAddrs.forEach((i) => {
-    //     console.log(i);
-    // });
+    // send the rewards
+    // const reserveSeed = process.env.PLM_SEED;
+    // if (!reserveSeed) throw new Error('Sender seed was not provided');
+    // await sendBatchTransaction([...refRewards, ...affRewards], reserveSeed);
 
-    Utils.writeCache(refRewards, 'ref-reward-data', process.cwd());
+    Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
+
+    Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
+    Utils.writeCsv(affRewards, 'affiliation-rewards', dataSaveFolder);
 
     console.log('finished');
 };
