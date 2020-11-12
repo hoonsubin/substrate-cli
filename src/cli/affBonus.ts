@@ -1,25 +1,25 @@
 import { SubscanApi } from '../model/SubscanTypes';
 import { LockEvent, FullClaimData, LockdropType } from '../model/EventTypes';
+import { PlmTransaction, AffiliationReward, ReferenceReward } from '../model/AffiliateReward';
 import _ from 'lodash';
-import * as PlasmUtils from '../helper/plasmUtils';
 import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
+import * as PolkadotCryptoUtils from '@polkadot/util-crypto';
 import { Claim as LockdropClaim } from '@plasm/types/interfaces';
 import { defaultAddress, isValidIntroducerAddress } from '../data/affiliationAddress';
 import claims from '../data/claim-complete.json';
 import locks from '../data/eth-main-locks.json';
 import allClaimData from '../data/claim-full-data.json';
 import Introducer from '../model/LockdropIntroducer';
-import { Utils } from '../helper';
+import { Utils, EthLockdrop, PlasmUtils } from '../helper';
 import { Keyring } from '@polkadot/api';
+import path from 'path';
+import EthCrypto from 'eth-crypto';
+import BigNumber from 'bignumber.js';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
 const plasmApi = new PlasmConnect(network);
-
-interface PlmTransaction {
-    receiverAddress: string;
-    sendAmount: string; // femto
-}
+const keyring = new Keyring({ type: 'sr25519' });
 
 const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
     const eventValue = eventList.params.find((i) => i.type === type)?.value;
@@ -83,10 +83,13 @@ const fetchAllClaims = async (lockEvents: LockEvent[], claimEvents: SubscanApi.E
 };
 
 const sendBatchTransaction = async (transactionList: PlmTransaction[], senderSeed: string) => {
-    const keyring = new Keyring({ type: 'sr25519' });
     const origin = keyring.addFromSeed(PolkadotUtils.hexToU8a(senderSeed));
 
-    const txVec = _.map(transactionList, (tx) => {
+    const validAddr = _.filter(transactionList, (tx) => {
+        return PolkadotCryptoUtils.checkAddress(tx.receiverAddress, 5)[0];
+    });
+
+    const txVec = _.map(validAddr, (tx) => {
         return plasmApi.api.tx.balances.transfer(tx.receiverAddress, tx.sendAmount);
     });
 
@@ -130,8 +133,89 @@ const getAllIntroducers = (claimList: FullClaimData[]) => {
     return introducers;
 };
 
+const knownPlmAddress = [
+    {
+        ethAddr: '0x9498db340a3ecab7bb0973ee36e95e58c8e58a41',
+        plmAddr: 'Xp5rb4ioj84w8CUL2hZ95BGih4AT1NVDt1av6hZwKrR8n8t',
+    },
+    {
+        ethAddr: '0xF22b286fdA7369255376742f360fFCEE4e1FBD42',
+        plmAddr: 'Zw2EAFAXyeNwzzC6FS5baNMADcUExShmPTBk3UAbH8VtNoU',
+    },
+    {
+        ethAddr: '0x55763D6dB54736084c1B8d010Aa1d99F0DC6d07C',
+        plmAddr: 'aQUgPgajuzeEgk1FEbpNCDhCd9seUftaXQ7hrXWdoXnCUkf',
+    },
+    {
+        ethAddr: '0x9F4f9E15a4A963a9a3885979Cc64B326dCAa18A8',
+        plmAddr: 'VxwWY69vTJ4chHoaEfHaUVSQ3BeJNtLFYByhKaRPefujSz6',
+    },
+    {
+        ethAddr: '0x1080355C93A1B4c0Dd3c340Eed4f7E514c583077',
+        plmAddr: 'YwnuNtrGcHa7jxz4jLibeCxxrqKcrUurYAjM2GTLVPr3Kbf',
+    },
+    {
+        // @rheeunion
+        ethAddr: '0x3937B5F83f8e3DB413bD202bAf4da5A64879690F',
+        plmAddr: 'bUUve83HysJPyXGfbAPcGdV2YujGPVMqZgM61fio4WTrQSs',
+    },
+    {
+        // @Rafael
+        ethAddr: '0xf5d7d97b33c4090a8cace5f7c5a1cc54c5740930',
+        plmAddr: 'aerRsAR8oK3VwiA1TtaqTbeMc9TMFFVXiuSkb44n3P2PxKn',
+    },
+    {
+        // @Jimmy Tudesky
+        ethAddr: '0xa451fd5fcc0d389e0c27ff22845c0e17153f7dc8',
+        plmAddr: 'bUVmJR3gu1hi9qa41pzFWWfFP4QVUYPyntNKjhort4BPovK',
+    },
+];
+
+const getPlmAddrFromPubKey = async (introducerEthAddr: string, unCompPubKeyListDir: string) => {
+    const firstLdPubKeys = (await Utils.loadCsv(unCompPubKeyListDir)).map((i) => i.publicKey);
+
+    const pubKey = _.find(firstLdPubKeys, (i) => {
+        const ethAddr = EthCrypto.publicKey.toAddress(EthCrypto.publicKey.compress(i.replace('0x', '')));
+        return ethAddr.toLowerCase() === introducerEthAddr.toLowerCase();
+    });
+    if (!pubKey) {
+        const addrFromKnown = _.find(
+            knownPlmAddress,
+            (i) => i.ethAddr.toLowerCase() === introducerEthAddr.toLowerCase(),
+        )?.plmAddr;
+
+        if (!addrFromKnown) console.warn('Cannot find pub key for ' + introducerEthAddr);
+        // cross reference from known addresses
+        return addrFromKnown || 'N/A';
+    }
+
+    return PlasmUtils.generatePlmAddress(EthCrypto.publicKey.compress(pubKey.replace('0x', '')));
+};
+
+const getRefRewardAmount = (introducer: Introducer) => {
+    const allRefLocks = introducer.locks
+        .filter((i) => i.lockEvent.introducer !== defaultAddress)
+        .concat(introducer.references);
+    const refRewards = _.map(allRefLocks, (lock) => {
+        const lockReward = new BigNumber((lock.amount as unknown) as string).multipliedBy(introducer.bonusRate);
+
+        const receivingPlmAddress = keyring.encodeAddress(PolkadotUtils.hexToU8a('0x' + lock.claimedAddress), 5);
+
+        return {
+            introducer: lock.lockEvent.introducer,
+            receiverAddress: receivingPlmAddress,
+            sendAmount: lockReward.toFixed(),
+            lockTx: (lock.params.transactionHash as unknown) as string,
+            claimId: lock.claimId,
+        } as ReferenceReward;
+    });
+
+    return refRewards;
+};
+
 // script entry point
-export default (async () => {
+export default async () => {
+    const dataSaveFolder = path.join(process.cwd(), 'report');
     // cast types for loaded JSON files
     const cachedClaimCompleteEv = (claims as unknown) as SubscanApi.Event[];
     const cachedLockEvents = (locks as unknown) as LockEvent[];
@@ -139,18 +223,37 @@ export default (async () => {
     // this contains both the lock event and the claim event
     const cachedClaimData = (allClaimData as unknown) as FullClaimData[];
 
-    // we only need this when we're calling a function that uses it
-    // await plasmApi.start();
-    // const fullData = await fetchAllClaims(cachedLockEvents, cachedClaimCompleteEv);
-    // cacheObject(fullData, 'claims-with-aff');
-
     const introducers = getAllIntroducers(cachedClaimData);
 
-    Utils.writeCache(introducers, 'introducer-data', process.cwd());
+    const refRewards = _.flatten(_.map(introducers, (i) => getRefRewardAmount(i)));
+
+    const affRewards = await Promise.all(
+        _.map(introducers, async (i) => {
+            const ethAddress = i.ethAddress;
+            const sendAmount = i.totalBonus;
+            const receiverAddress = await getPlmAddrFromPubKey(
+                ethAddress,
+                path.join(process.cwd(), 'src', 'data', 'first-participant.csv'),
+            );
+            return {
+                ethAddress,
+                receiverAddress,
+                sendAmount,
+                numberOfRefs: i.references.length,
+            } as AffiliationReward;
+        }),
+    );
+
+    // send the rewards
+    // const reserveSeed = process.env.PLM_SEED;
+    // if (!reserveSeed) throw new Error('Sender seed was not provided');
+    // await sendBatchTransaction([...refRewards, ...affRewards], reserveSeed);
+
+    // record the data locally
+    Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
+
+    Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
+    Utils.writeCsv(affRewards, 'affiliation-rewards', dataSaveFolder);
 
     console.log('finished');
-    process.exit(0);
-})().catch((err) => {
-    console.error(err);
-    process.exit(1);
-});
+};
