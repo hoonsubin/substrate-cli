@@ -154,10 +154,6 @@ const knownPlmAddress = [
         ethAddr: '0x1080355C93A1B4c0Dd3c340Eed4f7E514c583077',
         plmAddr: 'YwnuNtrGcHa7jxz4jLibeCxxrqKcrUurYAjM2GTLVPr3Kbf',
     },
-    {
-        ethAddr: '0x3937B5F83f8e3DB413bD202bAf4da5A64879690F',
-        plmAddr: 'bUUve83HysJPyXGfbAPcGdV2YujGPVMqZgM61fio4WTrQSs',
-    },
     { // @rheeunion#0605
         ethAddr: '0x3937B5F83f8e3DB413bD202bAf4da5A64879690F',
         plmAddr: 'bUUve83HysJPyXGfbAPcGdV2YujGPVMqZgM61fio4WTrQSs',
