@@ -4,6 +4,7 @@ import { PlmTransaction, AffiliationReward, ReferenceReward } from '../model/Aff
 import _ from 'lodash';
 import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
+import * as PolkadotCryptoUtils from '@polkadot/util-crypto';
 import { Claim as LockdropClaim } from '@plasm/types/interfaces';
 import { defaultAddress, isValidIntroducerAddress } from '../data/affiliationAddress';
 import claims from '../data/claim-complete.json';
@@ -84,7 +85,11 @@ const fetchAllClaims = async (lockEvents: LockEvent[], claimEvents: SubscanApi.E
 const sendBatchTransaction = async (transactionList: PlmTransaction[], senderSeed: string) => {
     const origin = keyring.addFromSeed(PolkadotUtils.hexToU8a(senderSeed));
 
-    const txVec = _.map(transactionList, (tx) => {
+    const validAddr = _.filter(transactionList, (tx) => {
+        return PolkadotCryptoUtils.checkAddress(tx.receiverAddress, 5)[0];
+    });
+
+    const txVec = _.map(validAddr, (tx) => {
         return plasmApi.api.tx.balances.transfer(tx.receiverAddress, tx.sendAmount);
     });
 
