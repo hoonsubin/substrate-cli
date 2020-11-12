@@ -18,6 +18,7 @@ import BigNumber from 'bignumber.js';
 
 const network: PlasmUtils.NodeEndpoint = 'Local';
 const plasmApi = new PlasmConnect(network);
+const keyring = new Keyring({ type: 'sr25519' });
 
 const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
     const eventValue = eventList.params.find((i) => i.type === type)?.value;
@@ -81,7 +82,6 @@ const fetchAllClaims = async (lockEvents: LockEvent[], claimEvents: SubscanApi.E
 };
 
 const sendBatchTransaction = async (transactionList: PlmTransaction[], senderSeed: string) => {
-    const keyring = new Keyring({ type: 'sr25519' });
     const origin = keyring.addFromSeed(PolkadotUtils.hexToU8a(senderSeed));
 
     const txVec = _.map(transactionList, (tx) => {
@@ -166,13 +166,23 @@ const getPlmAddrFromPubKey = (introducerEthAddr: string, unCompPubKey: string[])
     return PlasmUtils.generatePlmAddress(EthCrypto.publicKey.compress(pubKey.replace('0x', '')));
 };
 
-const getRewardAmount = (introducer: Introducer) => {
-    const allRefLocks = introducer.locks.concat(introducer.references);
+const getRefRewardAmount = (introducer: Introducer) => {
+    const allRefLocks = introducer.locks
+        .filter((i) => i.lockEvent.introducer !== defaultAddress)
+        .concat(introducer.references);
     const refRewards = _.map(allRefLocks, (lock) => {
-        const lockReward = new BigNumber((lock.amount as unknown) as string);
+        const lockReward = new BigNumber((lock.amount as unknown) as string).multipliedBy(introducer.bonusRate);
         // todo: hash the claim address to be substrate compatible
-        const receivingPlmAddress = lock.claimedAddress;
+        const receivingPlmAddress = keyring.encodeAddress(PolkadotUtils.hexToU8a('0x' + lock.claimedAddress), 5);
+
+        return {
+            introducer: lock.lockEvent.introducer,
+            receiverAddress: receivingPlmAddress,
+            sendAmount: lockReward.toFixed(),
+        } as ReferenceReward;
     });
+
+    return refRewards;
 };
 
 // script entry point
@@ -190,17 +200,19 @@ export default async () => {
 
     const introducers = getAllIntroducers(cachedClaimData);
 
-    const introducerAddrs = introducers.map((intro) => {
-        if (intro.locks.length > 0)
-            return PlasmUtils.generatePlmAddress((intro.locks[0].params.publicKey as unknown) as string);
-        return getPlmAddrFromPubKey(intro.ethAddress, firstLdPubKeys);
-    });
+    const refRewards = _.map(introducers, (i) => getRefRewardAmount(i));
 
-    introducerAddrs.forEach((i) => {
-        console.log(i);
-    });
+    // const introducerAddrs = introducers.map((intro) => {
+    //     if (intro.locks.length > 0)
+    //         return PlasmUtils.generatePlmAddress((intro.locks[0].params.publicKey as unknown) as string);
+    //     return getPlmAddrFromPubKey(intro.ethAddress, firstLdPubKeys);
+    // });
 
-    //Utils.writeCache(introducers, 'introducer-data', process.cwd());
+    // introducerAddrs.forEach((i) => {
+    //     console.log(i);
+    // });
+
+    Utils.writeCache(refRewards, 'ref-reward-data', process.cwd());
 
     console.log('finished');
 };
