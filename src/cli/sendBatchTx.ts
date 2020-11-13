@@ -3,7 +3,7 @@ import _ from 'lodash';
 import * as PolkadotUtils from '@polkadot/util';
 import * as PolkadotCryptoUtils from '@polkadot/util-crypto';
 import { Utils, PlasmUtils } from '../helper';
-import { ApiPromise, Keyring, WsProvider } from '@polkadot/api';
+import { ApiPromise, WsProvider, Keyring } from '@polkadot/api';
 import { AddressOrPair } from '@polkadot/api/types';
 import path from 'path';
 import BN from 'bn.js';
@@ -59,19 +59,17 @@ const sendBatchTransaction = async (api: ApiPromise, transactionList: PlmTransac
 // script entry point
 export default async () => {
     const network: PlasmUtils.NodeEndpoint = 'Main';
-    const keyring = new Keyring({ ss58Format: 5 });
+    const keyring = new Keyring({ ss58Format: 5, type: 'sr25519' });
 
     const api = await createPlasmInstance(network);
 
     // import address from seed
     const reserveSeed = process.env.PLM_SEED;
     if (!reserveSeed) throw new Error('Sender seed was not provided');
-    const sender = keyring.addFromUri(reserveSeed, { name: 'origin' }, 'sr25519');
+    const sender = keyring.addFromUri(reserveSeed);
 
     const funds = (await api.query.system.account(sender.address)).data;
     console.log(`${sender.address} has ${funds.toString()} tokens`);
-    const blockHead = await api.rpc.chain.getBlock();
-    console.log(blockHead.block.toHuman());
 
     const recipientList = (
         await Utils.loadCsv(path.join(process.cwd(), 'src', 'data', '.temp', 'test-address.csv'))
@@ -89,7 +87,7 @@ export default async () => {
     // const txHash = await api.tx.balances
     //     .transfer('5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty', 12345)
     //     .signAndSend(alice);
-
+    // console.log(txHash);
     await sendBatchTransaction(api, transactionList, sender);
 
     console.log('finished');
