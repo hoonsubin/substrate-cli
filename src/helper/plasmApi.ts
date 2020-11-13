@@ -97,7 +97,7 @@ export default class PlasmConnect {
      * @param lockParam lockdrop parameter that contains the lock data
      * @param nonce nonce for PoW authentication with the node
      */
-    public async sendLockClaimRequest(lockParam: Lockdrop, nonce: Uint8Array): Promise<Hash> {
+    public async sendLockClaimRequest(lockParam: Lockdrop, nonce: Uint8Array) {
         const api = this._apiInst;
         if (typeof api.tx.plasmLockdrop === 'undefined') {
             throw new Error('Plasm node cannot find lockdrop module');
@@ -205,7 +205,7 @@ export default class PlasmConnect {
         const blockNumber = blockData.header.number.unwrap().toNumber();
         const timestamp = blockData.extrinsics.find((i) => {
             return i.method.section === 'timestamp';
-        })!.method.args[0] as Moment;
+        })!.method.args[0];
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const claim = (await api.query.plasmLockdrop.claims(claimId)) as any;
@@ -224,7 +224,7 @@ export default class PlasmConnect {
             amount: claim.get('amount'),
             complete: claim.get('complete').valueOf(),
             blockNumber,
-            timestamp: Math.trunc(timestamp.toNumber() / 1000),
+            timestamp: Math.trunc(Number.parseFloat(timestamp.toString()) / 1000),
             claimId: polkadotUtils.u8aToHex(claimId),
         };
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -288,14 +288,14 @@ export default class PlasmConnect {
             });
 
             const reqs = _events.map(([hash, extr]) => {
-                const claimIds = extr as Vec<ClaimId>;
+                const claimIds = (extr as unknown) as Vec<ClaimId>;
                 return {
                     blockHash: hash,
                     claimIds,
                 };
             });
             // flip the array to ensure new blocks go first
-            blockEventList = blockEventList.concat(reqs.reverse());
+            blockEventList = blockEventList.concat(reqs as any);
             progressBar.update(i);
         }
         progressBar.stop();
@@ -328,12 +328,12 @@ export default class PlasmConnect {
             claimEvents.map(async (i, index) => {
                 const _block = (await api.rpc.chain.getBlock(i.blockHash)).block;
                 const blockNumber = _block.header.number.unwrap().toNumber();
-                const timestamp = _block.extrinsics.find((i) => {
+                const timestamp = (_block.extrinsics.find((i) => {
                     return i.method.section === 'timestamp';
-                })!.method.args[0] as Moment;
-                const claimData = (await api.query.plasmLockdrop.claims(
+                })!.method.args[0] as unknown) as Moment;
+                const claimData = ((await api.query.plasmLockdrop.claims(
                     polkadotUtils.hexToU8a(i.claimId),
-                )) as LockdropClaim;
+                )) as unknown) as LockdropClaim;
 
                 const _claim: Claim = {
                     params: {

@@ -27,7 +27,9 @@ const getEventParamValue = (eventList: SubscanApi.Event, type: string) => {
 };
 
 const fetchClaimData = async (claimId: string) => {
-    return (await plasmApi.api.query.plasmLockdrop.claims(PolkadotUtils.hexToU8a(claimId))) as LockdropClaim;
+    return ((await plasmApi.api.query.plasmLockdrop.claims(
+        PolkadotUtils.hexToU8a(claimId),
+    )) as unknown) as LockdropClaim;
 };
 
 const appendFullClaimData = (claim: LockdropClaim, claimEvent: SubscanApi.Event, lockEvent: LockEvent) => {

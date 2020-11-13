@@ -58,7 +58,7 @@ const sendBatchTransaction = async (api: ApiPromise, transactionList: PlmTransac
 
 // script entry point
 export default async () => {
-    const network: PlasmUtils.NodeEndpoint = 'Local';
+    const network: PlasmUtils.NodeEndpoint = 'Main';
     const keyring = new Keyring({ ss58Format: 5 });
 
     const api = await createPlasmInstance(network);
@@ -85,7 +85,11 @@ export default async () => {
         } as PlmTransaction;
     });
 
-    //console.log({ transactionList, reserveSeed });
+    // const alice = keyring.addFromUri('//Alice', { name: 'Alice default' });
+    // const txHash = await api.tx.balances
+    //     .transfer('5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty', 12345)
+    //     .signAndSend(alice);
+
     await sendBatchTransaction(api, transactionList, sender);
 
     console.log('finished');
