@@ -1,17 +1,14 @@
-import { PlmTransaction, ReferenceReward } from '../model/AffiliateReward';
+import { PlmTransaction } from '../model/AffiliateReward';
 import _ from 'lodash';
-import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
 import * as PolkadotCryptoUtils from '@polkadot/util-crypto';
 import { Utils, PlasmUtils } from '../helper';
 import { ApiPromise, Keyring, WsProvider } from '@polkadot/api';
+import { AddressOrPair } from '@polkadot/api/types';
 import path from 'path';
 import BN from 'bn.js';
 import * as plasmDefinitions from '@plasm/types/interfaces/definitions';
 import { NodeEndpoint } from '../helper/plasmUtils';
-
-const network: PlasmUtils.NodeEndpoint = 'Local';
-const keyring = new Keyring({ type: 'sr25519' });
 
 const createPlasmInstance = async (network?: NodeEndpoint) => {
     const types = Object.values(plasmDefinitions).reduce((res, { types }): object => ({ ...res, ...types }), {});
@@ -35,28 +32,26 @@ const createPlasmInstance = async (network?: NodeEndpoint) => {
         provider: wsProvider,
         types: {
             ...types,
-            // chain-specific overrides
-            Address: 'GenericAddress',
-            Keys: 'SessionKeys4',
         },
     });
 
     return await api.isReady;
 };
 
-const sendBatchTransaction = async (api: ApiPromise, transactionList: PlmTransaction[], senderSeed: string) => {
-    const origin = keyring.addFromUri('//Alice', { name: 'Alice default' });
-
+const sendBatchTransaction = async (api: ApiPromise, transactionList: PlmTransaction[], origin: AddressOrPair) => {
     const validAddr = _.filter(transactionList, (tx) => {
         return PolkadotCryptoUtils.checkAddress(tx.receiverAddress, 5)[0];
     });
 
-    const txVec = _.map(validAddr, (tx) => {
-        return api.tx.balances.transfer(tx.receiverAddress, new BN(tx.sendAmount.replace('0x', ''), 'hex'));
+    const txVec = _.map(validAddr, (dest) => {
+        const account = dest.receiverAddress;
+        const amount = new BN(dest.sendAmount.replace('0x', ''), 'hex');
+
+        return api.tx.balances.transfer(account, amount);
     });
 
     //const txHash = await plasmApi.api.tx.balances.
-    const unsub = await api.tx.utility.batchAll(txVec).signAndSend(origin, { nonce: 32 }, (result) => {
+    const unsub = await api.tx.utility.batch(txVec).signAndSend(origin, { nonce: 32 }, (result) => {
         console.log(result.status);
         if (result.status.isFinalized) unsub();
     });
@@ -66,7 +61,17 @@ const sendBatchTransaction = async (api: ApiPromise, transactionList: PlmTransac
 
 // script entry point
 export default async () => {
+    const network: PlasmUtils.NodeEndpoint = 'Main';
+    const keyring = new Keyring({ ss58Format: 5 });
+
     const api = await createPlasmInstance(network);
+    // send the rewards
+    const reserveSeed = process.env.PLM_SEED;
+    if (!reserveSeed) throw new Error('Sender seed was not provided');
+    const sender = keyring.addFromUri(reserveSeed, { name: 'origin' }, 'sr25519');
+
+    const funds = await api.query.balances.account(sender.address);
+    console.log(`${sender.address} has ${funds.toString()} tokens`);
 
     const recipientList = (
         await Utils.loadCsv(path.join(process.cwd(), 'src', 'data', '.temp', 'test-address.csv'))
@@ -80,11 +85,8 @@ export default async () => {
         } as PlmTransaction;
     });
 
-    // send the rewards
-    const reserveSeed = process.env.PLM_SEED;
-    if (!reserveSeed) throw new Error('Sender seed was not provided');
     //console.log({ transactionList, reserveSeed });
-    await sendBatchTransaction(api, transactionList, reserveSeed);
+    //await sendBatchTransaction(api, transactionList, sender);
 
     console.log('finished');
 };
