@@ -51,27 +51,27 @@ const sendBatchTransaction = async (api: ApiPromise, transactionList: PlmTransac
     });
 
     //const txHash = await plasmApi.api.tx.balances.
-    const unsub = await api.tx.utility.batch(txVec).signAndSend(origin, { nonce: 32 }, (result) => {
-        console.log(result.status);
-        if (result.status.isFinalized) unsub();
-    });
+    const hash = await api.tx.utility.batch(txVec).signAndSend(origin, { nonce: 32 });
 
-    return true;
+    return hash;
 };
 
 // script entry point
 export default async () => {
-    const network: PlasmUtils.NodeEndpoint = 'Main';
+    const network: PlasmUtils.NodeEndpoint = 'Local';
     const keyring = new Keyring({ ss58Format: 5 });
 
     const api = await createPlasmInstance(network);
-    // send the rewards
+
+    // import address from seed
     const reserveSeed = process.env.PLM_SEED;
     if (!reserveSeed) throw new Error('Sender seed was not provided');
     const sender = keyring.addFromUri(reserveSeed, { name: 'origin' }, 'sr25519');
 
-    const funds = await api.query.balances.account(sender.address);
+    const funds = (await api.query.system.account(sender.address)).data;
     console.log(`${sender.address} has ${funds.toString()} tokens`);
+    const blockHead = await api.rpc.chain.getBlock();
+    console.log(blockHead.block.toHuman());
 
     const recipientList = (
         await Utils.loadCsv(path.join(process.cwd(), 'src', 'data', '.temp', 'test-address.csv'))
@@ -86,7 +86,7 @@ export default async () => {
     });
 
     //console.log({ transactionList, reserveSeed });
-    //await sendBatchTransaction(api, transactionList, sender);
+    await sendBatchTransaction(api, transactionList, sender);
 
     console.log('finished');
 };
