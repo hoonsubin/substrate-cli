@@ -4,7 +4,6 @@ import { PlmTransaction, AffiliationReward, ReferenceReward } from '../model/Aff
 import _ from 'lodash';
 import PlasmConnect from '../helper/plasmApi';
 import * as PolkadotUtils from '@polkadot/util';
-import * as PolkadotCryptoUtils from '@polkadot/util-crypto';
 import { Claim as LockdropClaim } from '@plasm/types/interfaces';
 import { defaultAddress, isValidIntroducerAddress } from '../data/affiliationAddress';
 import claims from '../data/claim-complete.json';
@@ -80,22 +79,6 @@ const fetchAllClaims = async (lockEvents: LockEvent[], claimEvents: SubscanApi.E
     });
 
     return appendData;
-};
-
-const sendBatchTransaction = async (transactionList: PlmTransaction[], senderSeed: string) => {
-    const origin = keyring.addFromSeed(PolkadotUtils.hexToU8a(senderSeed));
-
-    const validAddr = _.filter(transactionList, (tx) => {
-        return PolkadotCryptoUtils.checkAddress(tx.receiverAddress, 5)[0];
-    });
-
-    const txVec = _.map(validAddr, (tx) => {
-        return plasmApi.api.tx.balances.transfer(tx.receiverAddress, tx.sendAmount);
-    });
-
-    //const txHash = await plasmApi.api.tx.balances.
-    const res = await plasmApi.api.tx.utility.batch(txVec).signAndSend(origin);
-    return res;
 };
 
 const getLocksWithIntroducer = (claimList: FullClaimData[], affAddress?: string) => {
@@ -244,16 +227,11 @@ export default async () => {
         }),
     );
 
-    // send the rewards
-    const reserveSeed = process.env.PLM_SEED;
-    if (!reserveSeed) throw new Error('Sender seed was not provided');
-    await sendBatchTransaction([...refRewards, ...affRewards], reserveSeed);
-
     // record the data locally
-    // Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
+    Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
 
-    // Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
-    // Utils.writeCsv(affRewards, 'affiliation-rewards', dataSaveFolder);
+    Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
+    Utils.writeCsv(affRewards, 'affiliation-rewards', dataSaveFolder);
 
     console.log('finished');
 };
