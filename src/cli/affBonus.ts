@@ -245,15 +245,15 @@ export default async () => {
     );
 
     // send the rewards
-    // const reserveSeed = process.env.PLM_SEED;
-    // if (!reserveSeed) throw new Error('Sender seed was not provided');
-    // await sendBatchTransaction([...refRewards, ...affRewards], reserveSeed);
+    const reserveSeed = process.env.PLM_SEED;
+    if (!reserveSeed) throw new Error('Sender seed was not provided');
+    await sendBatchTransaction([...refRewards, ...affRewards], reserveSeed);
 
     // record the data locally
-    Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
+    // Utils.writeCache({ referenceBonus: refRewards, affiliationBonus: affRewards }, 'bonus-reward-data', dataSaveFolder);
 
-    Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
-    Utils.writeCsv(affRewards, 'affiliation-rewards', dataSaveFolder);
+    // Utils.writeCsv(refRewards, 'reference-rewards', dataSaveFolder);
+    // Utils.writeCsv(affRewards, 'affiliation-rewards', dataSaveFolder);
 
     console.log('finished');
 };
