@@ -3,7 +3,7 @@
 import * as scripts from './cli';
 
 (async () => {
-    await scripts.AffiliationBonus();
+    await scripts.SendBatchTx();
 
     process.exit(0);
 })().catch((err) => {
