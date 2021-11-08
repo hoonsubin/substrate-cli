@@ -1,44 +1,29 @@
 {
-    "name": "plasm-scripts",
+    "name": "substrate-cli",
     "version": "1.0.0",
-    "description": "A multi-purpose CLI tool to quickly interact with Plasm Network",
-    "main": "src/index.ts",
+    "description": "A simple scripting CLI tool for interacting with Substrate-based nodes",
+    "main": "index.js",
+    "private": true,
     "scripts": {
         "start": "ts-node-dev -r dotenv/config src/index.ts",
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "fetch:eth-test": "ts-node -r dotenv/config src/cli/cacheLockEvents.ts ropsten",
-        "fetch:eth-main": "ts-node -r dotenv/config src/cli/cacheLockEvents.ts mainnet",
-        "fetch:claims": "ts-node -r dotenv/config src/cli/cacheClaimEvents.ts",
-        "fetch:all": "yarn run fetch:eth-test && yarn run fetch:eth-main && yarn run fetch:claims"
+        "test": "echo \"Error: no test specified\" && exit 1"
     },
     "license": "MIT",
     "devDependencies": {
-        "@types/cli-progress": "^3.8.0",
-        "@types/lodash": "^4.14.164",
-        "@types/node-fetch": "^2.5.7",
-        "dotenv": "^8.2.0",
-        "prettier": "^2.1.2",
-        "ts-node": "^9.0.0",
-        "ts-node-dev": "^1.0.0-pre.63",
-        "typescript": "^4.0.5"
+        "@types/lodash": "^4.14.176",
+        "@types/node": "^16.11.6",
+        "@types/objects-to-csv": "^1.3.1",
+        "dotenv": "^10.0.0",
+        "prettier": "^2.4.1",
+        "ts-node": "^10.4.0",
+        "ts-node-dev": "^1.1.8",
+        "typescript": "^4.4.4"
     },
     "dependencies": {
-        "@plasm/types": "^1.4.0",
-        "@polkadot/api": "^2.6.2-12",
-        "@polkadot/util": "^4.0.2-12",
-        "@polkadot/util-crypto": "^4.0.2-12",
-        "bignumber.js": "^9.0.1",
-        "bn.js": "^5.1.3",
-        "cli-progress": "^3.8.2",
-        "csv-stringify": "^5.5.1",
-        "eth-crypto": "^1.8.0",
+        "@polkadot/api": "^6.7.1",
+        "@polkadot/util": "^7.8.2",
+        "@polkadot/util-crypto": "^7.8.2",
         "lodash": "^4.17.21",
-        "moment": "^2.29.1",
-        "neat-csv": "^5.2.0",
-        "node-fetch": "^2.6.1",
-        "web3": "^1.3.0"
-    },
-    "resolutions": {
-        "@polkadot/types": "2.6.2-12"
+        "objects-to-csv": "^1.3.6"
     }
 }
