@@ -1,11 +1,10 @@
 #!/usr/bin/env ts-node
 
-import * as scripts from './cli';
+import app from './app';
 
 (async () => {
-    await scripts.SendBatchTx();
-
-    process.exit(0);
+    await app();
+    
 })().catch((err) => {
     console.error(err);
     process.exit(1);
