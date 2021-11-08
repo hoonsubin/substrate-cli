@@ -4,34 +4,40 @@ import ObjectsToCsv from 'objects-to-csv';
 import claimData from './data/claim-complete.json';
 import _ from 'lodash';
 
-export default async function app() {
-    const endpoint = 'wss://rpc.shiden.astar.network';
+const endpoints = {
+    polkadot: 'wss://rpc.polkadot.io',
+    shiden: 'wss://rpc.shiden.astar.network',
+    local: 'ws://localhost:9944',
+};
 
-    const provider = new WsProvider(endpoint);
+export default async function app() {
+    const shidenTypes = {
+        Keys: 'AccountId',
+        SmartContract: {
+            _enum: {
+                Evm: 'H160',
+                Wasm: 'AccountId',
+            },
+        },
+        EraIndex: 'u32',
+        EraStakingPoints: {
+            total: 'Balance',
+            stakers: 'BTreeMap<AccountId, Balance>',
+            _formerStakedEra: 'EraIndex',
+            claimedRewards: 'Balance',
+        },
+        EraRewardAndStake: {
+            rewards: 'Balance',
+            staked: 'Balance',
+        },
+    };
+
+    const provider = new WsProvider(endpoints.local);
     // Create our API with a default connection to the local node
     const api = await (
         await ApiPromise.create({
             provider,
-            types: {
-                Keys: 'AccountId',
-                SmartContract: {
-                    _enum: {
-                        Evm: 'H160',
-                        Wasm: 'AccountId',
-                    },
-                },
-                EraIndex: 'u32',
-                EraStakingPoints: {
-                    total: 'Balance',
-                    stakers: 'BTreeMap<AccountId, Balance>',
-                    _formerStakedEra: 'EraIndex',
-                    claimedRewards: 'Balance',
-                },
-                EraRewardAndStake: {
-                    rewards: 'Balance',
-                    staked: 'Balance',
-                },
-            },
+            types: shidenTypes
         })
     ).isReady;
 
@@ -66,37 +72,63 @@ const getLockdropParticipantBalance = async (api: ApiPromise) => {
         return polkadotUtils.encodeAddress('0x' + pubkey, 5);
     });
 
-    const balanceList = await api.query.system.account.multi(participantAddrList);
+    // obtain all account balances in header
+    const currentAccountList = await api.query.system.account.multi(participantAddrList);
 
-    const participantBalances = _.map(balanceList, (value, index) => {
+    const currentBalances = _.map(currentAccountList, (value, index) => {
         const { data } = value;
-        
+
         const address = participantAddrList[index];
         return { address, freeBalance: data.free.toHuman(), reservedBalance: data.reserved.toHuman() };
     });
 
-    const csv = new ObjectsToCsv(participantBalances);
+    // obtain all account balances in genesis
+    const genesisHash = await api.rpc.chain.getBlockHash(1);
+    console.log(`Genesis hash: ${genesisHash}`);
+
+    const genesisApi = await api.at(genesisHash);
+
+    const genesisQueryList = _.map(participantAddrList, (addr) => {
+        return [genesisApi.query.system.account, addr];
+    });
+
+    // we can only use this method due to storage metadata changes in old blocks
+    const genesisAccountList = await genesisApi.queryMulti(genesisQueryList as any);
+
+    const genesisBalances = _.map(genesisAccountList, (value, index) => {
+        const { data } = value as any;
+
+        const address = participantAddrList[index];
+        return {
+            address,
+            freeBalance: data.free.toHuman() as string,
+            reservedBalance: data.reserved.toHuman() as string,
+        };
+    });
+
+    // combine the genesis list and the header list
+    const combinedList = _.map(participantAddrList, (value, index) => {
+        const genesisBalance = genesisBalances[index];
+        const currentBalance = currentBalances[index];
+
+        return {
+            address: value,
+            genesisFree: genesisBalance.freeBalance,
+            genesisReserved: genesisBalance.reservedBalance,
+            currentFree: currentBalance.freeBalance,
+            currentReserved: currentBalance.reservedBalance,
+        };
+    });
+
+    await saveAsCsv(combinedList);
+
+    //console.log(genesisAccountList[0].toHuman());
+
+    console.log('Finished saving');
+};
+
+const saveAsCsv = async (list: Array<object>) => {
+    const csv = new ObjectsToCsv(list);
 
     await csv.toDisk('./list.csv');
-
-    participantBalances.forEach((i) => {
-        console.log(i);
-    });
-    //console.log(participantBalances);
-
-    // const unsub = await api.query.system.account.multi(participantAddrList, (bal) => {
-    //     const balance = _.map(bal, (i) => {
-    //         const { data } = i;
-
-    //         return data.free.toHuman();
-    //     });
-    //     console.log(balance);
-    // });
-
-    // const participantBalanceList = _.map(participantAddrList, (participant) => {
-
-    // })
-    // participantAddrList.forEach((i) => {
-    //     console.log(i);
-    // })
 };
