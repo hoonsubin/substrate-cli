@@ -1,6 +1,6 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import * as polkadotUtils from '@polkadot/util-crypto';
-import ObjectsToCsv from 'objects-to-csv';
+import { saveAsCsv } from './utils';
 import claimData from './data/claim-complete.json';
 import _ from 'lodash';
 
@@ -10,38 +10,37 @@ const endpoints = {
     local: 'ws://localhost:9944',
 };
 
-export default async function app() {
-    const shidenTypes = {
-        Keys: 'AccountId',
-        SmartContract: {
-            _enum: {
-                Evm: 'H160',
-                Wasm: 'AccountId',
-            },
+const shidenTypes = {
+    Keys: 'AccountId',
+    SmartContract: {
+        _enum: {
+            Evm: 'H160',
+            Wasm: 'AccountId',
         },
-        EraIndex: 'u32',
-        EraStakingPoints: {
-            total: 'Balance',
-            stakers: 'BTreeMap<AccountId, Balance>',
-            _formerStakedEra: 'EraIndex',
-            claimedRewards: 'Balance',
-        },
-        EraRewardAndStake: {
-            rewards: 'Balance',
-            staked: 'Balance',
-        },
-    };
+    },
+    EraIndex: 'u32',
+    EraStakingPoints: {
+        total: 'Balance',
+        stakers: 'BTreeMap<AccountId, Balance>',
+        _formerStakedEra: 'EraIndex',
+        claimedRewards: 'Balance',
+    },
+    EraRewardAndStake: {
+        rewards: 'Balance',
+        staked: 'Balance',
+    },
+};
 
-    const provider = new WsProvider(endpoints.local);
+export default async function app() {
+    const provider = new WsProvider(endpoints.polkadot);
     // Create our API with a default connection to the local node
     const api = await (
         await ApiPromise.create({
             provider,
-            types: shidenTypes
         })
     ).isReady;
 
-    await getLockdropParticipantBalance(api);
+    await getUnbondEvents(api);
 }
 
 interface ClaimEvent {
@@ -127,8 +126,21 @@ const getLockdropParticipantBalance = async (api: ApiPromise) => {
     console.log('Finished saving');
 };
 
-const saveAsCsv = async (list: Array<object>) => {
-    const csv = new ObjectsToCsv(list);
+const getUnbondEvents = async (api: ApiPromise) => {
+    // Subscribe to system events via storage
+    api.query.system.events((events) => {
 
-    await csv.toDisk('./list.csv');
-};
+        // Loop through the Vec<EventRecord>
+        events.forEach((record) => {
+            // Extract the event
+            const { event } = record;
+            // Show what we are busy with
+            console.log(`\t${event.section}:${event.method}:: (event ID=${event.index.toHuman()})`);
+            
+            if (event.section === 'staking' && event.method === 'Unbonded') {
+                
+                console.log(event.data.toHuman());
+            }
+        });
+    });
+}
