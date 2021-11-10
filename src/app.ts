@@ -127,20 +127,39 @@ const getLockdropParticipantBalance = async (api: ApiPromise) => {
 };
 
 const getUnbondEvents = async (api: ApiPromise) => {
-    // Subscribe to system events via storage
-    api.query.system.events((events) => {
 
-        // Loop through the Vec<EventRecord>
-        events.forEach((record) => {
-            // Extract the event
-            const { event } = record;
-            // Show what we are busy with
-            console.log(`\t${event.section}:${event.method}:: (event ID=${event.index.toHuman()})`);
-            
+    // Set the Start and Eng blocknumber.
+    // This script will search the events in the blocks generated between [endBlockNumber, startBlockNumber]
+    const startBlockNumber = 7362891;
+    const endBlockNumber = 7334256;
+    if (startBlockNumber < endBlockNumber) {
+        console.error("StartBlockNumber should be more than EndBlockNumber");
+        return;
+    }
+
+    // Loop until reaching the endBlockNumber
+    let currentBlockNumber = startBlockNumber + 1;
+    let output = new Array();    
+    while ( --currentBlockNumber >= endBlockNumber) {
+        const currentBlockHash = await api.rpc.chain.getBlockHash(currentBlockNumber);
+        const currentApi = await api.at(currentBlockHash);
+        const currentTime = await currentApi.query.timestamp.now();
+        console.log(`last header hash ${currentBlockHash.toHex()} (at #${currentBlockNumber})`);
+
+        await (await currentApi.query.system.events()).map( eventRecord => {
+            const event = eventRecord.event;
             if (event.section === 'staking' && event.method === 'Unbonded') {
-                
-                console.log(event.data.toHuman());
+                console.log(`${event.data}`);
+                output.push({
+                    timestamp: new Date(currentTime.toNumber()).toISOString(),
+                    blockNumber: currentBlockNumber,
+                    accountId: event.data[0],
+                    amount: event.data[1]
+                })
             }
         });
-    });
+    }
+
+    // Export to CSV
+    await saveAsCsv(output);
 }
