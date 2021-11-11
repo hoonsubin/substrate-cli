@@ -1,6 +1,6 @@
 import { ApiPromise, WsProvider } from '@polkadot/api';
 import * as polkadotUtils from '@polkadot/util-crypto';
-import ObjectsToCsv from 'objects-to-csv';
+import { saveAsCsv } from './utils';
 import claimData from './data/claim-complete.json';
 import _ from 'lodash';
 
@@ -10,38 +10,37 @@ const endpoints = {
     local: 'ws://localhost:9944',
 };
 
-export default async function app() {
-    const shidenTypes = {
-        Keys: 'AccountId',
-        SmartContract: {
-            _enum: {
-                Evm: 'H160',
-                Wasm: 'AccountId',
-            },
+const shidenTypes = {
+    Keys: 'AccountId',
+    SmartContract: {
+        _enum: {
+            Evm: 'H160',
+            Wasm: 'AccountId',
         },
-        EraIndex: 'u32',
-        EraStakingPoints: {
-            total: 'Balance',
-            stakers: 'BTreeMap<AccountId, Balance>',
-            _formerStakedEra: 'EraIndex',
-            claimedRewards: 'Balance',
-        },
-        EraRewardAndStake: {
-            rewards: 'Balance',
-            staked: 'Balance',
-        },
-    };
+    },
+    EraIndex: 'u32',
+    EraStakingPoints: {
+        total: 'Balance',
+        stakers: 'BTreeMap<AccountId, Balance>',
+        _formerStakedEra: 'EraIndex',
+        claimedRewards: 'Balance',
+    },
+    EraRewardAndStake: {
+        rewards: 'Balance',
+        staked: 'Balance',
+    },
+};
 
-    const provider = new WsProvider(endpoints.local);
+export default async function app() {
+    const provider = new WsProvider(endpoints.polkadot);
     // Create our API with a default connection to the local node
     const api = await (
         await ApiPromise.create({
             provider,
-            types: shidenTypes
         })
     ).isReady;
 
-    await getLockdropParticipantBalance(api);
+    await getUnbondEvents(api);
 }
 
 interface ClaimEvent {
@@ -127,8 +126,40 @@ const getLockdropParticipantBalance = async (api: ApiPromise) => {
     console.log('Finished saving');
 };
 
-const saveAsCsv = async (list: Array<object>) => {
-    const csv = new ObjectsToCsv(list);
+const getUnbondEvents = async (api: ApiPromise) => {
 
-    await csv.toDisk('./list.csv');
-};
+    // Set the Start and Eng blocknumber.
+    // This script will search the events in the blocks generated between [endBlockNumber, startBlockNumber]
+    const startBlockNumber = 7362891;
+    const endBlockNumber = 7334256;
+    if (startBlockNumber < endBlockNumber) {
+        console.error("StartBlockNumber should be more than EndBlockNumber");
+        return;
+    }
+
+    // Loop until reaching the endBlockNumber
+    let currentBlockNumber = startBlockNumber + 1;
+    let output = new Array();    
+    while ( --currentBlockNumber >= endBlockNumber) {
+        const currentBlockHash = await api.rpc.chain.getBlockHash(currentBlockNumber);
+        const currentApi = await api.at(currentBlockHash);
+        const currentTime = await currentApi.query.timestamp.now();
+        console.log(`last header hash ${currentBlockHash.toHex()} (at #${currentBlockNumber})`);
+
+        await (await currentApi.query.system.events()).map( eventRecord => {
+            const event = eventRecord.event;
+            if (event.section === 'staking' && event.method === 'Unbonded') {
+                console.log(`${event.data}`);
+                output.push({
+                    timestamp: new Date(currentTime.toNumber()).toISOString(),
+                    blockNumber: currentBlockNumber,
+                    accountId: event.data[0],
+                    amount: event.data[1]
+                })
+            }
+        });
+    }
+
+    // Export to CSV
+    await saveAsCsv(output);
+}
