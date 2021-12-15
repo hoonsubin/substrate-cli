@@ -3,32 +3,14 @@ import * as polkadotUtils from '@polkadot/util-crypto';
 import { saveAsCsv } from './utils';
 import claimData from './data/claim-complete.json';
 import _ from 'lodash';
+import BN from 'bn.js';
+import { Vec } from '@polkadot/types';
+import { FrameSystemEventRecord } from '@polkadot/types/lookup';
 
 const endpoints = {
     polkadot: 'wss://rpc.polkadot.io',
     shiden: 'wss://rpc.shiden.astar.network',
     local: 'ws://localhost:9944',
-};
-
-const shidenTypes = {
-    Keys: 'AccountId',
-    SmartContract: {
-        _enum: {
-            Evm: 'H160',
-            Wasm: 'AccountId',
-        },
-    },
-    EraIndex: 'u32',
-    EraStakingPoints: {
-        total: 'Balance',
-        stakers: 'BTreeMap<AccountId, Balance>',
-        _formerStakedEra: 'EraIndex',
-        claimedRewards: 'Balance',
-    },
-    EraRewardAndStake: {
-        rewards: 'Balance',
-        staked: 'Balance',
-    },
 };
 
 export default async function app() {
@@ -40,7 +22,7 @@ export default async function app() {
         })
     ).isReady;
 
-    await getUnbondEvents(api);
+    await getCrowdloanContribution(api);
 }
 
 interface ClaimEvent {
@@ -126,41 +108,100 @@ const getLockdropParticipantBalance = async (api: ApiPromise) => {
     console.log('Finished saving');
 };
 
-const getUnbondEvents = async (api: ApiPromise) => {
-    // Set the Start and Eng blocknumber.
-    // This script will search the events in the blocks generated between [endBlockNumber, startBlockNumber]
-    const startBlockNumber = 7362891;
-    const endBlockNumber = 7334256;
-    if (startBlockNumber < endBlockNumber) {
-        console.error('StartBlockNumber should be more than EndBlockNumber');
-        return;
+interface Contribution {
+    block: number;
+    account: string; // ss58 address
+    paraId: number;
+    amount: BN;
+}
+
+interface ContributeMemo {
+    block: number;
+    account: string;
+    paraId: number;
+    referral: string;
+}
+
+const ASTAR_PARA_ID = 2006;
+const POLKADOT_PREFIX = 0;
+
+const getCrowdloanContribution = async (api: ApiPromise) => {
+    // crowdloan start and finish block number source: https://polkadot.subscan.io/crowdloan/2006-3
+    const CAMPAIGN_START_BLOCK = 7572600; // 2021-11-05 15:55
+    //const CAMPAIGN_END_BLOCK = 8179200; // 2021-12-17 22:17
+
+    const AUCTION_END_BLOCK = 7959430; // 2021-12-02 15:36
+
+    const contributionList: Contribution[] = [];
+    const referralList: ContributeMemo[] = [];
+
+    for (let i = CAMPAIGN_START_BLOCK; i++; i <= AUCTION_END_BLOCK) {
+        const blockHash = await api.rpc.chain.getBlockHash(i);
+        const currentApi = await api.at(blockHash);
+        const events = await currentApi.query.system.events();
+
+        const contributors = await getCrowdloanContributionAt(i, events);
+        const referrals = await getCrowdloanReferralAt(i, events);
+
+        console.log(`Found ${contributors.length} contributions in block ${i}`);
+
+        contributionList.push(...contributors);
+        referralList.push(...referrals);
     }
+    
+    console.log(contributionList);
+    console.log(referralList);
+};
 
-    // Loop until reaching the endBlockNumber
-    let currentBlockNumber = startBlockNumber + 1;
-    let output = new Array();
-    while (--currentBlockNumber >= endBlockNumber) {
-        const currentBlockHash = await api.rpc.chain.getBlockHash(currentBlockNumber);
-        const currentApi = await api.at(currentBlockHash);
-        const currentTime = await currentApi.query.timestamp.now();
-        console.log(`last header hash ${currentBlockHash.toHex()} (at #${currentBlockNumber})`);
+const getCrowdloanContributionAt = async (at: number, events: Vec<FrameSystemEventRecord>) => {
+    let contributions: Contribution[] = [];
 
-        await (
-            await currentApi.query.system.events()
-        ).map((eventRecord) => {
-            const event = eventRecord.event;
-            if (event.section === 'staking' && event.method === 'Unbonded') {
-                console.log(`${event.data}`);
-                output.push({
-                    timestamp: new Date(currentTime.toNumber()).toISOString(),
-                    blockNumber: currentBlockNumber,
-                    accountId: event.data[0],
-                    amount: event.data[1],
-                });
+    events.forEach(async (record) => {
+        const { event } = record;
+        const { data } = event;
+
+        if (event.method === 'Contributed') {
+            const paraId = Number.parseInt(data[1].toString());
+            if (paraId === ASTAR_PARA_ID) {
+                // check for contribution event
+                const contribution = {
+                    block: at,
+                    account: data[0].toString(),
+                    paraId: Number.parseInt(data[1].toString()),
+                    amount: new BN(data[2].toString()),
+                };
+                contributions.push(contribution);
             }
-        });
-    }
+        }
+    });
 
-    // Export to CSV
-    await saveAsCsv(output);
+    return contributions;
+};
+
+const getCrowdloanReferralAt = async (at: number, events: Vec<FrameSystemEventRecord>) => {
+    const referrals: ContributeMemo[] = [];
+
+    events.forEach(async (record) => {
+        const { event } = record;
+        const { data } = event;
+
+        if (event.method === 'MemoUpdated') {
+            const paraId = Number.parseInt(data[1].toString());
+
+            if (paraId === ASTAR_PARA_ID) {
+                // note: we assume that the memo data is a hex public key and not something else
+                const refAddress = polkadotUtils.encodeAddress(data[2].toString(), POLKADOT_PREFIX);
+                const referral = {
+                    block: at,
+                    account: data[0].toString(),
+                    paraId: Number.parseInt(data[1].toString()),
+                    referral: refAddress,
+                };
+
+                referrals.push(referral);
+            }
+        }
+    });
+
+    return referrals;
 };
