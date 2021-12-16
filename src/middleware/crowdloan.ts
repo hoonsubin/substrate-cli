@@ -1,4 +1,4 @@
-import { ApiPromise, WsProvider } from '@polkadot/api';
+import { ApiPromise } from '@polkadot/api';
 import * as polkadotUtils from '@polkadot/util-crypto';
 import _ from 'lodash';
 import BN from 'bn.js';
