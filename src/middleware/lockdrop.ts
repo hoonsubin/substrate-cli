@@ -1,26 +1,9 @@
 import { ApiPromise } from '@polkadot/api';
 import * as polkadotUtils from '@polkadot/util-crypto';
 import { saveAsCsv } from '../utils';
-import claimData from '../data/claim-complete.json';
+import claimData from '../data/lockdrop-claim-complete.json';
 import _ from 'lodash';
-
-export interface ClaimEvent {
-    event_index: string;
-    block_num: number;
-    extrinsic_idx: number;
-    module_id: string;
-    event_id: string;
-    params: EventParam[];
-    event_idx: number;
-    extrinsic_hash: string;
-    block_timestamp: number;
-}
-
-export interface EventParam {
-    type: string;
-    value: string;
-    value_raw: string;
-}
+import { ClaimEvent } from '../types';
 
 export const getLockdropParticipantBalance = async (api: ApiPromise) => {
     const claimList = claimData as ClaimEvent[];

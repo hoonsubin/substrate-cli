@@ -1,11 +1,14 @@
-import { ApiPromise } from '@polkadot/api';
+import { DotContribution } from '../types';
 import * as polkadotUtils from '@polkadot/util-crypto';
 import _ from 'lodash';
+import axios from 'axios';
+import { Response, ContributePayload } from '../types';
+/*
+import { ApiPromise } from '@polkadot/api';
 import BN from 'bn.js';
 import { Vec } from '@polkadot/types';
 import { FrameSystemEventRecord } from '@polkadot/types/lookup';
-import axios from 'axios';
-import { Response, ContributePayload } from '../types';
+
 
 export interface Contribution {
     block: number;
@@ -23,7 +26,7 @@ export interface ContributeMemo {
 
 const POLKADOT_PREFIX = 0;
 
-export const getCrowdloanContributions = async (api: ApiPromise, paraId: number, startBlock: number, endBlock: number) => {
+export const getCrowdloanContributionsFromChain = async (api: ApiPromise, paraId: number, startBlock: number, endBlock: number) => {
     const contributionList: Contribution[] = [];
     const referralList: ContributeMemo[] = [];
 
@@ -101,15 +104,9 @@ const getCrowdloanReferralAt = async (at: number, events: Vec<FrameSystemEventRe
     return referrals;
 };
 
-export interface ContributionSubscan {
-    who: string;
-    amount: string;
-    eventId: string;
-    blockNumber: number;
-    memo: string;
-}
+*/
 
-export const subscanFetchContributes = async (endpoint: string, param: ContributePayload, apiKey?: string) => {
+export const getContributesFromSubscan = async (endpoint: string, param: ContributePayload, apiKey?: string) => {
     if (!apiKey) {
         throw new Error('No Subscan API key was found');
     }
@@ -133,11 +130,11 @@ export const subscanFetchContributes = async (endpoint: string, param: Contribut
 
     const contributionList = _.map(responseData.contributes, (i) => {
         const referral = i.memo !== '' ? convertToPolkadotAddress('0x' + i.memo) : i.memo;
-        const contribution: ContributionSubscan = {
+        const contribution: DotContribution = {
             who: i.who,
             amount: i.contributing,
-            eventId: i.event_index,
-            blockNumber: i.block_num,
+            extrinsic_index: i.extrinsic_index,
+            block_num: i.block_num,
             memo: referral,
         };
         return contribution;
@@ -150,4 +147,3 @@ const convertToPolkadotAddress = (publicKeyHex: string) => {
     const POLKADOT_PREFIX = 0;
     return polkadotUtils.encodeAddress(publicKeyHex, POLKADOT_PREFIX);
 };
-

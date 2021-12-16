@@ -1,6 +1,6 @@
-import { ContributePayload } from './types';
+import { ContributePayload, DotContribution } from './types';
 import { setTimeout as sleep } from 'timers/promises';
-import { subscanFetchContributes, ContributionSubscan } from './middleware';
+import { getContributesFromSubscan } from './middleware';
 
 const endpoints = {
     polkadot: 'wss://rpc.polkadot.io',
@@ -35,7 +35,7 @@ export default async function app() {
 
     const ASTAR_FUND_ID = '2006-3';
 
-    const contributionList: ContributionSubscan[] = [];
+    const contributionList: DotContribution[] = [];
     let pageIndex = 0;
 
     while (true) {
@@ -49,7 +49,7 @@ export default async function app() {
         };
 
         try {
-            const resList = await subscanFetchContributes(
+            const resList = await getContributesFromSubscan(
                 'https://polkadot.api.subscan.io/api/scan/parachain/contributes',
                 param,
                 process.env.SUBSCAN_API_KEY,
