@@ -4,6 +4,8 @@ import _ from 'lodash';
 import BN from 'bn.js';
 import { Vec } from '@polkadot/types';
 import { FrameSystemEventRecord } from '@polkadot/types/lookup';
+import axios from 'axios';
+import { Response, ContributePayload } from '../types';
 
 export interface Contribution {
     block: number;
@@ -98,3 +100,54 @@ const getCrowdloanReferralAt = async (at: number, events: Vec<FrameSystemEventRe
 
     return referrals;
 };
+
+export interface ContributionSubscan {
+    who: string;
+    amount: string;
+    eventId: string;
+    blockNumber: number;
+    memo: string;
+}
+
+export const subscanFetchContributes = async (endpoint: string, param: ContributePayload, apiKey?: string) => {
+    if (!apiKey) {
+        throw new Error('No Subscan API key was found');
+    }
+
+    const res = await axios({
+        method: 'POST',
+        url: endpoint,
+        data: param,
+        timeout: 1000,
+        headers: {
+            'Content-Type': 'application/json',
+            'X-API-Key': apiKey,
+        },
+    });
+
+    const responseData = (res.data as Response).data;
+
+    if (responseData === null) {
+        return null;
+    }
+
+    const contributionList = _.map(responseData.contributes, (i) => {
+        const referral = i.memo !== '' ? convertToPolkadotAddress('0x' + i.memo) : i.memo;
+        const contribution: ContributionSubscan = {
+            who: i.who,
+            amount: i.contributing,
+            eventId: i.event_index,
+            blockNumber: i.block_num,
+            memo: referral,
+        };
+        return contribution;
+    });
+
+    return contributionList;
+};
+
+const convertToPolkadotAddress = (publicKeyHex: string) => {
+    const POLKADOT_PREFIX = 0;
+    return polkadotUtils.encodeAddress(publicKeyHex, POLKADOT_PREFIX);
+};
+

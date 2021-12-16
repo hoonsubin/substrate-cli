@@ -1,7 +1,6 @@
-import * as polkadotUtils from '@polkadot/util-crypto';
-import axios from 'axios';
-import { Response, ContributePayload } from './types';
-import _ from 'lodash';
+import { ContributePayload } from './types';
+import { setTimeout as sleep } from 'timers/promises';
+import { subscanFetchContributes, ContributionSubscan } from './middleware';
 
 const endpoints = {
     polkadot: 'wss://rpc.polkadot.io',
@@ -36,65 +35,36 @@ export default async function app() {
 
     const ASTAR_FUND_ID = '2006-3';
 
-    const param: ContributePayload = {
-        fund_id: ASTAR_FUND_ID,
-        page: 0,
-        row: 100,
-        order: 'block_num asc',
-        from_history: true,
-    };
+    const contributionList: ContributionSubscan[] = [];
+    let pageIndex = 0;
 
-    const resList = await subscanFetchContributes(
-        'https://polkadot.api.subscan.io/api/scan/parachain/contributes',
-        param,
-        process.env.SUBSCAN_API_KEY,
-    );
-
-    console.log(resList);
-}
-
-interface Contribution {
-    who: string;
-    amount: string;
-    eventId: string;
-    blockNumber: number;
-    memo: string;
-}
-
-const subscanFetchContributes = async (endpoint: string, param: ContributePayload, apiKey?: string) => {
-    if (!apiKey) {
-        throw new Error('No Subscan API key was found');
-    }
-
-    const res = await axios({
-        method: 'POST',
-        url: endpoint,
-        data: param,
-        timeout: 1000,
-        headers: {
-            'Content-Type': 'application/json',
-            'X-API-Key': apiKey,
-        },
-    });
-
-    const responseData = (res.data as Response).data;
-
-    const contributionList = _.map(responseData.contributes, (i) => {
-        const referral = i.memo !== '' ? convertToPolkadotAddress('0x' + i.memo) : i.memo;
-        const contribution: Contribution = {
-            who: i.who,
-            amount: i.contributing,
-            eventId: i.event_index,
-            blockNumber: i.block_num,
-            memo: referral,
+    while (true) {
+        await sleep(3000); // 3s sleep
+        const param: ContributePayload = {
+            fund_id: ASTAR_FUND_ID,
+            page: pageIndex,
+            row: 100,
+            order: 'block_num asc',
+            from_history: true,
         };
-        return contribution;
-    });
 
-    return contributionList;
-};
+        try {
+            const resList = await subscanFetchContributes(
+                'https://polkadot.api.subscan.io/api/scan/parachain/contributes',
+                param,
+                process.env.SUBSCAN_API_KEY,
+            );
 
-const convertToPolkadotAddress = (publicKeyHex: string) => {
-    const POLKADOT_PREFIX = 0;
-    return polkadotUtils.encodeAddress(publicKeyHex, POLKADOT_PREFIX);
+            if (!resList) {
+                break;
+            } else {
+                contributionList.push(...resList);
+            }
+            pageIndex += 1;
+        } catch (e) {
+            console.error(e);
+            break;
+        }
+    }
+    console.log(contributionList);
 }
