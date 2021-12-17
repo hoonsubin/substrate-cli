@@ -7,6 +7,7 @@ import plmLockdropParticipants from '../data/lockdrop-participants.json';
 import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
 import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
 import _ from 'lodash';
+import BN from 'bn.js';
 import { KsmCrowdloan, ClaimEvent } from '../types';
 
 interface Contribute {
@@ -90,11 +91,46 @@ export const getReferrals = (contributions: Contribute[]) => {
         }),
     );
 
-    console.log(refs);
+    return refs;
 };
+
+export const getSdnBalanceDiff = (account: string) => {
+    // ensure that the provided account is in the correct format
+    const sdnAccount = polkadotUtils.encodeAddress(account, ASTR_PREFIX);
+
+    // note: I know this is ridiculously inefficient
+    const ksmCrowdloanReward = _.find(SDN_KSM_REWARD_DB, (i) => {
+        return i.account_id === sdnAccount;
+    });
+
+    // search through the snapshot
+    const currentBalance = _.find(SDN_SNAPSHOT_DB, (i) => {
+        return i.address === sdnAccount;
+    });
+
+
+    return {
+        account: sdnAccount,
+        sdnReward: ksmCrowdloanReward ? ksmCrowdloanReward.amount : '0',
+        currentSdn: currentBalance ? currentBalance.balance : '0',
+    }
+}
+
+const canGetSdnBonus = (sdnReward: BN, currentBal: BN) => {
+    // accounts can have up to 0.1 SDN difference in their balance for the bonus
+    const rewardBuffer = new BN(10).pow(new BN(17));
+    
+    // can get bonus if currentBal >= sdnReward - 0.1 SDN
+    return currentBal.gte(sdnReward.sub(rewardBuffer));
+}
 
 export const getBonusStatus = (contributions: Contribute[]) => {
     const withEarlyBonus = _.map(contributions, (i) => {
+
+        const balDiff = getSdnBalanceDiff(i.who);
+
+        const ksmBonus = didParticipateInKsm(i.who) && canGetSdnBonus(new BN(balDiff.sdnReward), new BN(balDiff.currentSdn));
+
         return {
             who: i.who,
             amount: i.contributing,
@@ -103,12 +139,10 @@ export const getBonusStatus = (contributions: Contribute[]) => {
             blockNumber: i.block_num,
             referral: i.memo ? polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) : '',
             lockdropBonus: didParticipateInLockdrop(i.who) ? 'yes' : 'no',
-            ksmBonus: didParticipateInKsm(i.who) ? 'yes' : 'no',
+            ksmBonus: ksmBonus ? 'yes' : 'no',
+            sdnReward: balDiff.sdnReward,
+            currentBalance: balDiff.currentSdn
         };
     });
     return withEarlyBonus;
 };
-
-export const getSdnBalanceDiff = () => {
-
-}
