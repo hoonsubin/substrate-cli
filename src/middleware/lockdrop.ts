@@ -1,7 +1,7 @@
 import { ApiPromise } from '@polkadot/api';
 import * as polkadotUtils from '@polkadot/util-crypto';
 import { saveAsCsv } from '../utils';
-import claimData from '../data/lockdrop-claim-complete.json';
+import claimData from '../data/raw/lockdrop-claim-complete.json';
 import _ from 'lodash';
 import { ClaimEvent } from '../types';
 

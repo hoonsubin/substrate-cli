@@ -10,22 +10,26 @@ import {
     getLockdropParticipants,
     getKsmParticipants,
     PLM_LOCKDROP_DB,
-    didParticipateInKsm,
-    didParticipateInLockdrop,
+    SDN_KSM_REWARD_DB
 } from './utils';
 import _ from 'lodash';
-
-const endpoints = {
-    polkadot: 'wss://rpc.polkadot.io',
-    shiden: 'wss://rpc.shiden.astar.network',
-    local: 'ws://localhost:9944',
-};
+import BN from 'bn.js';
 
 export default async function app() {
-    const res = getBonusStatus(DOT_CROWDLOAN_DB);
 
-    await saveAsCsv(res);
-    //await saveLockdropAddrList();
+    const sdnDenomination = new BN(10).pow(new BN(18));
+    // convert SDN string to femto string
+    const res = _.map(SDN_KSM_REWARD_DB, (i) => {
+        return {
+            account_id: i.account_id,
+            amount: new BN(i.amount).mul(sdnDenomination).toString(),
+        }
+    });
+
+    console.log(res);
+    //const res = getBonusStatus(DOT_CROWDLOAN_DB);
+
+    //await saveAsCsv(res);
 }
 
 const saveLockdropAddrList = async () => {

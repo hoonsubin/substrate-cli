@@ -1,9 +1,11 @@
 import * as polkadotUtils from '@polkadot/util-crypto';
-import ksmCrowdloan from '../data/kusama-crowdloan.json';
-import dotCrowdloan from '../data/polkadot-crowdloan.json';
-import plmLockdrop from '../data/lockdrop-claim-complete.json';
+import ksmCrowdloan from '../data/raw/kusama-crowdloan.json';
+import dotCrowdloan from '../data/raw/polkadot-crowdloan.json';
+import plmLockdrop from '../data/raw/lockdrop-claim-complete.json';
 import ksmCrowdloandParticipants from '../data/ksm-crowdloan-participants.json';
 import plmLockdropParticipants from '../data/lockdrop-participants.json';
+import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
+import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
 import _ from 'lodash';
 import { KsmCrowdloan, ClaimEvent } from '../types';
 
@@ -21,12 +23,16 @@ const KSM_PREFIX = 2;
 const ASTR_PREFIX = 5;
 const DOT_PREFIX = 0;
 
+// local json storage
 export const KSM_CROWDLOAN_DB = ksmCrowdloan as KsmCrowdloan[];
 export const DOT_CROWDLOAN_DB = dotCrowdloan as Contribute[];
 export const PLM_LOCKDROP_DB = plmLockdrop as ClaimEvent[];
 
 export const KSM_CROWDLOAN_PARTICIPANTS = ksmCrowdloandParticipants as { address: string }[];
 export const PLM_LOCKDROP_PARTICIPANTS = plmLockdropParticipants as { address: string }[];
+
+export const SDN_KSM_REWARD_DB = sdnKsmReward as {account_id: string; amount: string}[];
+export const SDN_SNAPSHOT_DB = sdnSnapshot as { address: string; balance: string }[];
 
 export const didParticipateInKsm = (polkadotAddress: string) => {
     // convert polkadot address to kusama address
@@ -102,3 +108,7 @@ export const getBonusStatus = (contributions: Contribute[]) => {
     });
     return withEarlyBonus;
 };
+
+export const getSdnBalanceDiff = () => {
+
+}
