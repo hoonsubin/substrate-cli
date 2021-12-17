@@ -95,6 +95,7 @@ export const getBonusStatus = (contributions: Contribute[]) => {
             timestamp: i.block_timestamp,
             extrinsicId: i.extrinsic_index,
             blockNumber: i.block_num,
+            referral: i.memo ? polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) : '',
             lockdropBonus: didParticipateInLockdrop(i.who) ? 'yes' : 'no',
             ksmBonus: didParticipateInKsm(i.who) ? 'yes' : 'no',
         };

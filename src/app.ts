@@ -1,7 +1,19 @@
 import { ContributePayload, DotContribution } from './types';
 import { setTimeout as sleep } from 'timers/promises';
 import { getContributesFromSubscan } from './middleware';
-import {getBonusStatus, DOT_CROWDLOAN_DB, KSM_CROWDLOAN_DB, saveAsCsv, saveAsJson, getLockdropParticipants,getKsmParticipants, PLM_LOCKDROP_DB} from './utils';
+import {
+    getBonusStatus,
+    DOT_CROWDLOAN_DB,
+    KSM_CROWDLOAN_DB,
+    saveAsCsv,
+    saveAsJson,
+    getLockdropParticipants,
+    getKsmParticipants,
+    PLM_LOCKDROP_DB,
+    didParticipateInKsm,
+    didParticipateInLockdrop,
+} from './utils';
+import _ from 'lodash';
 
 const endpoints = {
     polkadot: 'wss://rpc.polkadot.io',
@@ -11,22 +23,33 @@ const endpoints = {
 
 export default async function app() {
     const res = getBonusStatus(DOT_CROWDLOAN_DB);
+
     await saveAsCsv(res);
     //await saveLockdropAddrList();
 }
 
 const saveLockdropAddrList = async () => {
     const participants = getLockdropParticipants(PLM_LOCKDROP_DB);
-    await saveAsJson(participants.map((i) => {return {address: i}}), './src/data/lockdrop-participants.json');
-}
+    await saveAsJson(
+        participants.map((i) => {
+            return { address: i };
+        }),
+        './src/data/lockdrop-participants.json',
+    );
+};
 
 const saveKsmCrowdloanAddrList = async () => {
     const participants = getKsmParticipants(KSM_CROWDLOAN_DB);
-    await saveAsJson(participants.map((i) => {return {address: i}}), './src/data/ksm-crowdloan-participants.json');
-}
+    await saveAsJson(
+        participants.map((i) => {
+            return { address: i };
+        }),
+        './src/data/ksm-crowdloan-participants.json',
+    );
+};
 
 const getContributionSubscan = async () => {
-        /*
+    /*
     const provider = new WsProvider(endpoints.polkadot);
     // Create our API with a default connection to the local node
     const api = await (
@@ -84,4 +107,4 @@ const getContributionSubscan = async () => {
         }
     }
     console.log(contributionList);
-}
+};
