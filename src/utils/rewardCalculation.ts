@@ -32,7 +32,7 @@ export const PLM_LOCKDROP_DB = plmLockdrop as ClaimEvent[];
 export const KSM_CROWDLOAN_PARTICIPANTS = ksmCrowdloandParticipants as { address: string }[];
 export const PLM_LOCKDROP_PARTICIPANTS = plmLockdropParticipants as { address: string }[];
 
-export const SDN_KSM_REWARD_DB = sdnKsmReward as {account_id: string; amount: string}[];
+export const SDN_KSM_REWARD_DB = sdnKsmReward as { account_id: string; amount: string }[];
 export const SDN_SNAPSHOT_DB = sdnSnapshot as { address: string; balance: string }[];
 
 export const didParticipateInKsm = (polkadotAddress: string) => {
@@ -108,28 +108,34 @@ export const getSdnBalanceDiff = (account: string) => {
         return i.address === sdnAccount;
     });
 
-
     return {
         account: sdnAccount,
         sdnReward: ksmCrowdloanReward ? ksmCrowdloanReward.amount : '0',
         currentSdn: currentBalance ? currentBalance.balance : '0',
-    }
-}
+    };
+};
 
 const canGetSdnBonus = (sdnReward: BN, currentBal: BN) => {
     // accounts can have up to 0.1 SDN difference in their balance for the bonus
     const rewardBuffer = new BN(10).pow(new BN(17));
-    
+
     // can get bonus if currentBal >= sdnReward - 0.1 SDN
     return currentBal.gte(sdnReward.sub(rewardBuffer));
-}
+};
+
+// returns a list of Ethereum accounts that participated in the lockdrop but did (could) not participate in the crowdloan
+// we need this list for those who participated in the crowdloan from a different account
+const needLockdropBonusConfirmation = (
+    polkadotCrowdloanParticipants: { address: string }[],
+    lockdropParticipants: { address: string }[],
+) => {};
 
 export const getBonusStatus = (contributions: Contribute[]) => {
     const withEarlyBonus = _.map(contributions, (i) => {
-
         const balDiff = getSdnBalanceDiff(i.who);
 
-        const ksmBonus = didParticipateInKsm(i.who) && canGetSdnBonus(new BN(balDiff.sdnReward), new BN(balDiff.currentSdn));
+        const ksmBonus =
+            didParticipateInKsm(i.who) && canGetSdnBonus(new BN(balDiff.sdnReward), new BN(balDiff.currentSdn));
 
         return {
             who: i.who,
@@ -141,7 +147,7 @@ export const getBonusStatus = (contributions: Contribute[]) => {
             lockdropBonus: didParticipateInLockdrop(i.who) ? 'yes' : 'no',
             ksmBonus: ksmBonus ? 'yes' : 'no',
             sdnReward: balDiff.sdnReward,
-            currentBalance: balDiff.currentSdn
+            currentBalance: balDiff.currentSdn,
         };
     });
     return withEarlyBonus;
