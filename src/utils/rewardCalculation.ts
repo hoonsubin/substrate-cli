@@ -4,6 +4,7 @@ import dotCrowdloan from '../data/raw/polkadot-crowdloan.json';
 import plmLockdrop from '../data/raw/lockdrop-claim-complete.json';
 import ksmCrowdloandParticipants from '../data/ksm-crowdloan-participants.json';
 import plmLockdropParticipants from '../data/lockdrop-participants.json';
+import dotCrowdloandParticipants from '../data/dot-crowdloan-participants.json';
 import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
 import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
 import _ from 'lodash';
@@ -30,6 +31,7 @@ export const DOT_CROWDLOAN_DB = dotCrowdloan as Contribute[];
 export const PLM_LOCKDROP_DB = plmLockdrop as ClaimEvent[];
 
 export const KSM_CROWDLOAN_PARTICIPANTS = ksmCrowdloandParticipants as { address: string }[];
+export const DOT_CROWDLOAN_PARTICIPANTS = dotCrowdloandParticipants as { address: string }[];
 export const PLM_LOCKDROP_PARTICIPANTS = plmLockdropParticipants as { address: string }[];
 
 export const SDN_KSM_REWARD_DB = sdnKsmReward as { account_id: string; amount: string }[];
@@ -55,7 +57,9 @@ export const getKsmParticipants = (contributors: KsmCrowdloan[]) => {
 
 export const didParticipateInLockdrop = (polkadotAddress: string) => {
     const participation = _.find(PLM_LOCKDROP_PARTICIPANTS, (i) => {
-        return i.address === polkadotAddress;
+        // ensure the address in the database is ecoded in polkdaot prefix
+        const lockdropDotAddr = polkadotUtils.encodeAddress(i.address, DOT_PREFIX);
+        return lockdropDotAddr === polkadotAddress;
     });
 
     return !!participation;
@@ -125,10 +129,13 @@ const canGetSdnBonus = (sdnReward: BN, currentBal: BN) => {
 
 // returns a list of Ethereum accounts that participated in the lockdrop but did (could) not participate in the crowdloan
 // we need this list for those who participated in the crowdloan from a different account
-const needLockdropBonusConfirmation = (
-    polkadotCrowdloanParticipants: { address: string }[],
-    lockdropParticipants: { address: string }[],
-) => {};
+export const needLockdropBonusConfirmation = () => {
+    const needSign = _.filter(DOT_CROWDLOAN_PARTICIPANTS, (i) => {
+        return didParticipateInLockdrop(i.address);
+    });
+
+    return needSign;
+};
 
 export const getBonusStatus = (contributions: Contribute[]) => {
     const withEarlyBonus = _.map(contributions, (i) => {
