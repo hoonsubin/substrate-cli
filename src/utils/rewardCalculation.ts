@@ -19,6 +19,7 @@ interface Contribute {
     block_timestamp: number;
     extrinsic_index: string;
     memo: string;
+    status: number;
 }
 
 const KSM_PREFIX = 2;
@@ -138,12 +139,17 @@ export const needLockdropBonusConfirmation = () => {
 };
 
 export const getBonusStatus = (contributions: Contribute[]) => {
+    const totalItems = contributions.length;
+    console.log(`Total contributions ${totalItems}`);
+    let progress = 0;
     const withEarlyBonus = _.map(contributions, (i) => {
         const balDiff = getSdnBalanceDiff(i.who);
 
         const ksmBonus =
             didParticipateInKsm(i.who) && canGetSdnBonus(new BN(balDiff.sdnReward), new BN(balDiff.currentSdn));
 
+        progress += 1;
+        console.log(`Finished ${progress} items out of ${totalItems}`);
         return {
             who: i.who,
             amount: i.contributing,

@@ -3,8 +3,6 @@ import _ from 'lodash';
 import * as polkadotUtils from '@polkadot/util-crypto';
 
 export default async function app() {
-    const res = utils.needLockdropBonusConfirmation();
-
-    //console.log(res);
-    await utils.saveAsJson(res);
+    const res = utils.getBonusStatus(utils.DOT_CROWDLOAN_DB);
+    await utils.saveAsCsv(res);
 }
