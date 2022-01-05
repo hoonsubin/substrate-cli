@@ -1,8 +1,9 @@
 import * as utils from './utils';
 import _ from 'lodash';
-import * as polkadotUtils from '@polkadot/util-crypto';
+import * as polkadotCryptoUtils from '@polkadot/util-crypto';
 
 export default async function app() {
-    const res = utils.getBonusStatus(utils.DOT_CROWDLOAN_DB);
-    await utils.saveAsCsv(res);
+    const res = utils.getReferrals(utils.DOT_CROWDLOAN_DB);
+
+    await utils.saveAsJson(res);
 }

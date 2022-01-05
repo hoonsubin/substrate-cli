@@ -77,26 +77,44 @@ export const getLockdropParticipants = (lockClaimEv: ClaimEvent[]) => {
     );
 };
 
+// returns the number of referrals based on the referred accounts
 export const getReferrals = (contributions: Contribute[]) => {
+    
     const contributionWithRefs = _.map(
         _.filter(contributions, (i) => {
-            return !!i.memo;
+            // filter contributions where it has a referral and the referral is not the contributor
+            return !!i.memo && polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) !== i.who;
         }),
         (j) => {
             return {
                 contributor: j.who,
-                referred: j.memo,
+                referred: polkadotUtils.encodeAddress('0x' + j.memo, DOT_PREFIX),
             };
         },
     );
 
+    // get a list of a referrals without duplication
     const refs = _.uniq(
         _.map(contributionWithRefs, (i) => {
-            return polkadotUtils.encodeAddress('0x' + i.referred, DOT_PREFIX);
+            return i.referred;
         }),
     );
 
-    return refs;
+    const accountsWithReferrals = _.map(refs, (i) => {
+        // get a list of accounts that uses the current address (i) as the referral
+        const contributeRefs = _.filter(contributionWithRefs, (j) => {
+            return j.referred === i;
+        });
+        return {
+            reference: i,
+            // only return unique referrals (note: do we want to allow multiple referrals?)
+            referrals: _.uniq(_.map(contributeRefs, (j) => {
+                return j.contributor;
+            })),
+        };
+    });
+
+    return accountsWithReferrals;
 };
 
 export const getSdnBalanceDiff = (account: string) => {
