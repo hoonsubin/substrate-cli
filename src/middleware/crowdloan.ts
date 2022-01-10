@@ -1,4 +1,4 @@
-import { DotContribution } from '../types';
+import { SubscanDotContribution } from '../types';
 import * as polkadotUtils from '@polkadot/util-crypto';
 import _ from 'lodash';
 import axios from 'axios';
@@ -130,7 +130,7 @@ export const getContributesFromSubscan = async (endpoint: string, param: Contrib
 
     const contributionList = _.map(responseData.contributes, (i) => {
         const referral = i.memo !== '' ? convertToPolkadotAddress('0x' + i.memo) : i.memo;
-        const contribution: DotContribution = {
+        const contribution: SubscanDotContribution = {
             who: i.who,
             amount: i.contributing,
             extrinsic_index: i.extrinsic_index,

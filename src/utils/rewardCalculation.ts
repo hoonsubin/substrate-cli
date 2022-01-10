@@ -9,18 +9,7 @@ import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
 import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
 import _ from 'lodash';
 import BN from 'bn.js';
-import { KsmCrowdloan, ClaimEvent } from '../types';
-
-interface Contribute {
-    who: string;
-    contributed: string;
-    contributing: string;
-    block_num: number;
-    block_timestamp: number;
-    extrinsic_index: string;
-    memo: string;
-    status: number;
-}
+import { KsmCrowdloan, ClaimEvent, DotContribute } from '../types';
 
 const KSM_PREFIX = 2;
 const ASTR_PREFIX = 5;
@@ -28,7 +17,7 @@ const DOT_PREFIX = 0;
 
 // local json storage
 export const KSM_CROWDLOAN_DB = ksmCrowdloan as KsmCrowdloan[];
-export const DOT_CROWDLOAN_DB = dotCrowdloan as Contribute[];
+export const DOT_CROWDLOAN_DB = dotCrowdloan as DotContribute[];
 export const PLM_LOCKDROP_DB = plmLockdrop as ClaimEvent[];
 
 export const KSM_CROWDLOAN_PARTICIPANTS = ksmCrowdloandParticipants as { address: string }[];
@@ -78,7 +67,7 @@ export const getLockdropParticipants = (lockClaimEv: ClaimEvent[]) => {
 };
 
 // returns the number of referrals based on the referred accounts
-export const getReferrals = (contributions: Contribute[]) => {
+export const getReferrals = (contributions: DotContribute[]) => {
     
     const contributionWithRefs = _.map(
         _.filter(contributions, (i) => {
@@ -102,13 +91,13 @@ export const getReferrals = (contributions: Contribute[]) => {
 
     const accountsWithReferrals = _.map(refs, (i) => {
         // get a list of accounts that uses the current address (i) as the referral
-        const contributeRefs = _.filter(contributionWithRefs, (j) => {
+        const DotContributeRefs = _.filter(contributionWithRefs, (j) => {
             return j.referred === i;
         });
         return {
             reference: i,
             // only return unique referrals (note: do we want to allow multiple referrals?)
-            referrals: _.uniq(_.map(contributeRefs, (j) => {
+            referrals: _.uniq(_.map(DotContributeRefs, (j) => {
                 return j.contributor;
             })),
         };
@@ -156,7 +145,7 @@ export const needLockdropBonusConfirmation = () => {
     return needSign;
 };
 
-export const getBonusStatus = (contributions: Contribute[]) => {
+export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
     const totalItems = contributions.length;
     console.log(`Total contributions ${totalItems}`);
     let progress = 0;
