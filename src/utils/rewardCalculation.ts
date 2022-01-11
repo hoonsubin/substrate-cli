@@ -68,7 +68,6 @@ export const getLockdropParticipants = (lockClaimEv: ClaimEvent[]) => {
 
 // returns the number of referrals based on the referred accounts
 export const getReferrals = (contributions: DotContribute[]) => {
-    
     const contributionWithRefs = _.map(
         _.filter(contributions, (i) => {
             // filter contributions where it has a referral and the referral is not the contributor
@@ -97,16 +96,18 @@ export const getReferrals = (contributions: DotContribute[]) => {
         return {
             reference: i,
             // only return unique referrals (note: do we want to allow multiple referrals?)
-            referrals: _.uniq(_.map(DotContributeRefs, (j) => {
-                return j.contributor;
-            })),
+            referrals: _.uniq(
+                _.map(DotContributeRefs, (j) => {
+                    return j.contributor;
+                }),
+            ),
         };
     });
 
     return accountsWithReferrals;
 };
 
-export const getSdnBalanceDiff = (account: string) => {
+const canGetSdnBonus = (account: string) => {
     // ensure that the provided account is in the correct format
     const sdnAccount = polkadotUtils.encodeAddress(account, ASTR_PREFIX);
 
@@ -120,19 +121,45 @@ export const getSdnBalanceDiff = (account: string) => {
         return i.address === sdnAccount;
     });
 
-    return {
-        account: sdnAccount,
-        sdnReward: ksmCrowdloanReward ? ksmCrowdloanReward.amount : '0',
-        currentSdn: currentBalance ? currentBalance.balance : '0',
+    // get the balance information for SDN at the reward and at the end of the polkadot auction
+    const balDiff = {
+        sdnReward: new BN(ksmCrowdloanReward ? ksmCrowdloanReward.amount : '0'),
+        currentSdn: new BN(currentBalance ? currentBalance.balance : '0'),
     };
-};
 
-const canGetSdnBonus = (sdnReward: BN, currentBal: BN) => {
     // accounts can have up to 0.1 SDN difference in their balance for the bonus
     const rewardBuffer = new BN(10).pow(new BN(17));
 
     // can get bonus if currentBal >= sdnReward - 0.1 SDN
-    return currentBal.gte(sdnReward.sub(rewardBuffer));
+    return balDiff.currentSdn.gte(balDiff.sdnReward.sub(rewardBuffer));
+};
+
+export const calculateBonusRewards = (contributor: DotContribute) => {
+    let totalBonus = new BN(0);
+
+    // calculate early bird bonus
+    if (contributor.block_num < 7758292) {
+        // 20% bonus for people joined the auction before block number 7758292
+    }
+
+    if (didParticipateInLockdrop(contributor.who)) {
+        // lockdrop bonus formula 1 DOT = 101.61 ASTR * 0.1(10%) = 10.161 ASTR
+    }
+
+    // calculate KSM crowdloan bonus
+    if (canGetSdnBonus(contributor.who)) {
+    }
+
+    // the following bonuses should be applied separately after all the other calculations
+
+    // calculate referral bonus
+    if (contributor.memo !== '') {
+        // 10% of the total contributed amount
+    }
+
+    // calculate referrer bonus
+
+    return totalBonus;
 };
 
 // returns a list of Ethereum accounts that participated in the lockdrop but did (could) not participate in the crowdloan
@@ -150,11 +177,6 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
     console.log(`Total contributions ${totalItems}`);
     let progress = 0;
     const withEarlyBonus = _.map(contributions, (i) => {
-        const balDiff = getSdnBalanceDiff(i.who);
-
-        const ksmBonus =
-            didParticipateInKsm(i.who) && canGetSdnBonus(new BN(balDiff.sdnReward), new BN(balDiff.currentSdn));
-
         progress += 1;
         console.log(`Finished ${progress} items out of ${totalItems}`);
         return {
@@ -165,9 +187,7 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
             blockNumber: i.block_num,
             referral: i.memo ? polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) : '',
             lockdropBonus: didParticipateInLockdrop(i.who) ? 'yes' : 'no',
-            ksmBonus: ksmBonus ? 'yes' : 'no',
-            sdnReward: balDiff.sdnReward,
-            currentBalance: balDiff.currentSdn,
+            ksmBonus: canGetSdnBonus(i.who) ? 'yes' : 'no',
         };
     });
     return withEarlyBonus;
