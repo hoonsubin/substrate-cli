@@ -7,6 +7,7 @@ import plmLockdropParticipants from '../data/lockdrop-participants.json';
 import dotCrowdloandParticipants from '../data/dot-crowdloan-participants.json';
 import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
 import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
+import dotCrowdloanReferrals from '../data/dot-crowdloan-referrals.json';
 import _ from 'lodash';
 import BN from 'bn.js';
 import { KsmCrowdloan, ClaimEvent, DotContribute } from '../types';
@@ -26,6 +27,8 @@ export const PLM_LOCKDROP_PARTICIPANTS = plmLockdropParticipants as { address: s
 
 export const SDN_KSM_REWARD_DB = sdnKsmReward as { account_id: string; amount: string }[];
 export const SDN_SNAPSHOT_DB = sdnSnapshot as { address: string; balance: string }[];
+
+export const DOT_CROWDLOAN_REFERRALS = dotCrowdloanReferrals as { reference: string; referrals: string[] }[];
 
 export const didParticipateInKsm = (polkadotAddress: string) => {
     // convert polkadot address to kusama address
@@ -67,7 +70,7 @@ export const getLockdropParticipants = (lockClaimEv: ClaimEvent[]) => {
 };
 
 // returns the number of referrals based on the referred accounts
-export const getReferrals = (contributions: DotContribute[]) => {
+export const getAllReferrals = (contributions: DotContribute[]) => {
     const contributionWithRefs = _.map(
         _.filter(contributions, (i) => {
             // filter contributions where it has a referral and the referral is not the contributor
@@ -134,32 +137,91 @@ const canGetSdnBonus = (account: string) => {
     return balDiff.currentSdn.gte(balDiff.sdnReward.sub(rewardBuffer));
 };
 
-export const calculateBonusRewards = (contributor: DotContribute) => {
-    let totalBonus = new BN(0);
+export const totalDotContributed = (account: string) => {
+    const contributions = _.map(
+        _.filter(DOT_CROWDLOAN_DB, (i) => {
+            return i.who === account;
+        }),
+        (i) => {
+            return new BN(i.contributing);
+        },
+    );
+    const totalDot = _.reduce(
+        contributions,
+        (i, j) => {
+            return i.add(j);
+        },
+        new BN(0),
+    );
+
+    return totalDot;
+};
+
+export const getReferrals = (account: string) => {
+    const refs = _.find(DOT_CROWDLOAN_REFERRALS, (i) => {
+        return i.reference === account;
+    });
+    if (refs) {
+        return refs.referrals;
+    } else {
+        return [];
+    }
+};
+
+const isValidReferral = (referralMemo: string) => {
+    const referralAddress = polkadotUtils.encodeAddress('0x' + referralMemo, DOT_PREFIX);
+    const participated = _.find(DOT_CROWDLOAN_PARTICIPANTS, (i) => {
+        return i.address === referralAddress;
+    })
+
+    if (participated) {
+        return true
+    }
+    return false;
+}
+
+export const calculateBonusRewardPerContribution = (contributor: DotContribute) => {
+
+    // 1 DOT = 101.610752585225000000 ASTR
+    // 1 Femto = 1 DOT / 1^10
+    const DOT_REWARD_MULTIPLIER = 101.610752585225000000;
+    
+    const contribution = new BN(contributor.contributing);
+
+    let earlyBirdBonus = new BN(0);
+    let earlyAdopter = new BN(0);
+    let referralBonus = new BN(0);
 
     // calculate early bird bonus
     if (contributor.block_num < 7758292) {
         // 20% bonus for people joined the auction before block number 7758292
+        // 1 DOT = 101.61 * 0.2 = 20.322 ASTR
+        earlyBirdBonus = contribution.divn(1 ** 10).muln(DOT_REWARD_MULTIPLIER * 0.2); // ASTR
     }
 
-    if (didParticipateInLockdrop(contributor.who)) {
-        // lockdrop bonus formula 1 DOT = 101.61 ASTR * 0.1(10%) = 10.161 ASTR
-    }
-
-    // calculate KSM crowdloan bonus
-    if (canGetSdnBonus(contributor.who)) {
+    if (didParticipateInLockdrop(contributor.who) || canGetSdnBonus(contributor.who)) {
+        // early bird bonus formula 1 DOT = 101.61 ASTR * 0.1 = 10.161 ASTR
+        earlyAdopter = contribution.muln(DOT_REWARD_MULTIPLIER * 0.1); // ASTR
     }
 
     // the following bonuses should be applied separately after all the other calculations
 
+    //referring account = 1% of the base reward ASTR
+    // referred account = 10 ASTR per DOT of referring account's lock
+
     // calculate referral bonus
-    if (contributor.memo !== '') {
-        // 10% of the total contributed amount
+    if (isValidReferral(contributor.memo)) {
+        // 1% of the total contributed amount
     }
 
     // calculate referrer bonus
+    if (getReferrals(contributor.who).length > 0) {
 
-    return totalBonus;
+    }
+
+    let totalBonus = new BN(0);
+
+    return {earlyBirdBonus, earlyAdopter, totalBonus};
 };
 
 // returns a list of Ethereum accounts that participated in the lockdrop but did (could) not participate in the crowdloan
