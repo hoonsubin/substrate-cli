@@ -3,23 +3,51 @@ import _ from 'lodash';
 import * as polkadotCryptoUtils from '@polkadot/util-crypto';
 import BN from 'bn.js';
 
-import lockdropDump from './data/raw/realtime-lockdrop-dump.json';
+import lockdropDump from './data/raw/second-lockdrop-claims.json';
+import lockEvent from './data/raw/lockdrop-second-event.json';
+import plmSnapshot from './data/raw/plasm-balance-snapshot.json';
+
+interface LockdropParticipantData {
+    ethereumAddress: string;
+    plasmAddress: string;
+    lockDuration: number;
+    lockTxHash: string;
+    reward: string;
+}
+
+// vesting for lockdrop participants
+// 1000 days: 7 months
+// 30, 100, 300 days: 15 months
 
 export default async function app() {
-    //const res = utils.totalDotContributed('13wNbioJt44NKrcQ5ZUrshJqP7TKzQbzZt5nhkeL4joa3PAX');
-    const cleanData = _.map(lockdropDump, (i) => {
-        const dayBySeconds = 60 * 60 * 24;
-        const ss58Addr = polkadotCryptoUtils.encodeAddress(i.account_id, 5);
-        const lockDuration = new BN(i.duration).divn(dayBySeconds).toNumber();
+    /*
+    const res = _.map(lockdropDump, (i) => {
 
-        return {
-            ethAddr: i.ethereum_address,
-            lockDuration,
-            plasmAddress: ss58Addr,
-            transactionHash: i.transaction_hash,
-            publicKey: i.public_key
+        const lockdropData = _.find(utils.PLM_LOCKDROP_DB, (j) => {
+            const formatAddr = polkadotCryptoUtils.encodeAddress('0x' + j.params[1].value, 5);
+            return formatAddr === polkadotCryptoUtils.encodeAddress(i.plasmAddress, 5);
+        });
+
+        if (!lockdropData) {
+            console.log(`Cannot find balance for ${i.transactionHash}`);
         }
+
+        const reward = lockdropData?.params[2].value || '0';
+
+        const rewardData: LockdropParticipantData = {
+            ethereumAddress: i.ethereumAddress,
+            plasmAddress: i.plasmAddress,
+            lockDuration: i.lockDuration,
+            reward,
+            lockTxHash: i.transactionHash,
+        };
+        return rewardData;
     });
-    await utils.saveAsCsv(cleanData);
-    console.log(cleanData);
+*/
+    console.log({
+        lockEvent: lockEvent.length,
+        claimEvent: lockdropDump.length
+    });
+
+    //await utils.saveAsCsv(res);
 }

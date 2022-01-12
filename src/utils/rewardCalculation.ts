@@ -206,7 +206,7 @@ export const calculateBonusRewardPerContribution = (contributor: DotContribute) 
 
     // the following bonuses should be applied separately after all the other calculations
 
-    //referring account = 1% of the base reward ASTR
+    // referring account = 1% of the base reward ASTR
     // referred account = 10 ASTR per DOT of referring account's lock
 
     // calculate referral bonus
