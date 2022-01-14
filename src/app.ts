@@ -4,65 +4,93 @@ import * as polkadotCryptoUtils from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
 import BN from 'bn.js';
 import EthCrypto from 'eth-crypto';
+import { ClaimEvent } from './types';
+import BigNumber from 'bignumber.js';
 
-import secondLockdropClaims from './data/raw/second-lockdrop-claims.json';
+/*
 import firstLockdropClaims from './data/raw/first-lockdrop-claims.json';
-import earlyBirdRegistration from './data/bonus-reward-user-result.json';
-import plmSnapshot from './data/raw/plasm-balance-snapshot.json';
-
-interface LockdropParticipantData {
-    ethereumAddress: string;
-    plasmAddress: string;
-    lockDuration: number;
-    lockTxHash: string;
-    reward: string;
-}
+import secondLockdropClaims from './data/raw/second-lockdrop-claims.json';
+import additionalLockdropClaims from './data/bonus-reward-user-result.json';
+import secondLockdropClaimEvents from './data/raw/lockdrop-claim-complete.json';
+*/
 
 // vesting for lockdrop participants
 // 1000 days: 7 months
 // 30, 100, 300 days: 15 months
 
-// todo: redo the lockdrop participant bonus
+// vesting for all normal participants
+// 96 weeks = 24 months
+// todo: need data for address, amount, and vesting period
 
 export default async function app() {
-    const res = utils.getBonusStatusFullReport(utils.DOT_CROWDLOAN_DB);
+    const data = (await utils.readCsv(
+        '/Users/hoonkim/Projects/substrate-cli/src/data/crowdloan-reward-96weeks.csv',
+    )) as { address: string; amount: string; memo: string }[];
+
+    const res = _.map(data, (i) => {
+        const astarAddress = utils.convertSs58Format(i.address, utils.AddressPrefix.ASTR_PREFIX);
+        const amountInAstr = new BigNumber(i.amount).div(new BigNumber(10).pow(18));
+        return {
+            account_id: astarAddress,
+            amount: amountInAstr.toFixed(),
+        };
+    });
 
     await utils.saveAsCsv(res);
 }
 
-const lockdropParticipantList = () => {
+/*
+const lockdropParticipants = () => {
+    const ADDRESS_PREFIX = utils.AddressPrefix.DOT_PREFIX;
     const firstLockdrop = firstLockdropClaims;
     const secondLockdrop = secondLockdropClaims;
-    const additionalClaims = earlyBirdRegistration;
+    const secondLockdropClaimComplete = secondLockdropClaimEvents as ClaimEvent[];
+    const additionalLockdrop = additionalLockdropClaims;
 
-    const firstParticipants = _.map(firstLockdrop, (i) => {
-        const plmAddress = generatePlmAddress(EthCrypto.publicKey.compress(i['public key'].replace('0x', '')));
-        return plmAddress;
-    })
-    const secondParticipants = _.map(secondLockdrop, (i) => {
-        return polkadotCryptoUtils.encodeAddress(i.plasmAddress, 0);
+    const firstLockdropParticipants = _.map(firstLockdrop, (i) => {
+        const compressedPubKey = EthCrypto.publicKey.compress(i['public key'].replace('0x', ''));
+        // const eth = EthCrypto.publicKey.toAddress(compressedPubKey);
+        const ss58 = utils.convertSs58Format(utils.ss58FromEcdsaPublicKey(compressedPubKey), 0);
+        return { address: ss58 };
     });
-    const additionalParticipants = _.map(additionalClaims, (i) => {
-        return polkadotCryptoUtils.encodeAddress(i.targetBonusAddress, 0);
+    const secondLockdropParticipants = _.map(secondLockdrop, (i) => {
+        const ss58 = utils.convertSs58Format(i.plasmAddress as string, ADDRESS_PREFIX);
+        return { address: ss58 };
+    });
+    const secondLockdropFromEvent = _.map(secondLockdropClaimComplete, (i) => {
+        const ss58 = utils.convertSs58Format('0x' + i.params[1].value, ADDRESS_PREFIX);
+        return { address: ss58 };
     });
 
-    const allParticipants = _.uniq([...firstParticipants, ...secondParticipants, ...additionalParticipants]);
-
-    return _.map(allParticipants, (i) => {
-        return {
-            address: i,
-        };
+    const additionalLockdropApplicants = _.map(additionalLockdrop, (i) => {
+        const ss58 = utils.convertSs58Format(i.targetBonusAddress, ADDRESS_PREFIX);
+        return { address: ss58 };
     });
+
+    const allParticipants = [
+        ...firstLockdropParticipants,
+        ...secondLockdropParticipants,
+        ...secondLockdropFromEvent,
+        ...additionalLockdropApplicants,
+    ];
+    return _.uniq(allParticipants);
 };
+*/
 
-/**
- * generates a Plasm public address with the given ethereum public key
- * @param ethPubKey an compressed ECDSA public key. With or without the 0x prefix
- */
- const generatePlmAddress = (publicKey: string) => {
-    // hash to blake2
-    const plasmPubKey = polkadotCryptoUtils.blake2AsU8a(polkadotUtils.hexToU8a(publicKey.startsWith('0x') ? publicKey : '0x' + publicKey), 256);
-    // encode address
-    const plasmAddress = polkadotCryptoUtils.encodeAddress(plasmPubKey, 5);
-    return plasmAddress;
-}
+const durationToVestingSchedule = (startingBlock: number, totalAmount: BN, durationMonths: number) => {
+    const ONE_MONTH = 28 * 24 * 60 * 60;
+    const BLOCK_PER_SECOND = 12;
+    // one month in block numbers
+    const ONE_MONTH_BLOCKS_PER_12_SECONDS = ONE_MONTH / BLOCK_PER_SECOND;
+
+    const totalVestedBlocks = ONE_MONTH_BLOCKS_PER_12_SECONDS * durationMonths;
+    //console.log(totalVestedBlocks)
+    // amount per block * total vested block number must equal the total amount
+    const amountPerBlock = totalAmount.divn(totalVestedBlocks);
+
+    return {
+        locked: totalAmount,
+        perBlock: amountPerBlock,
+        startingBlock,
+    };
+};

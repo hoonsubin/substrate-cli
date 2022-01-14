@@ -1,25 +1,22 @@
 import * as polkadotUtils from '@polkadot/util-crypto';
+import * as utils from '../utils';
 import ksmCrowdloan from '../data/raw/kusama-crowdloan.json';
 import dotCrowdloan from '../data/raw/polkadot-crowdloan.json';
-import plmLockdrop from '../data/raw/lockdrop-claim-complete.json';
 import ksmCrowdloandParticipants from '../data/ksm-crowdloan-participants.json';
 import plmLockdropParticipants from '../data/lockdrop-participants.json';
 import dotCrowdloandParticipants from '../data/dot-crowdloan-participants.json';
 import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
 import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
 import dotCrowdloanReferrals from '../data/dot-crowdloan-referrals.json';
+
+
 import _ from 'lodash';
 import BN from 'bn.js';
 import { KsmCrowdloan, ClaimEvent, DotContribute } from '../types';
 
-const KSM_PREFIX = 2;
-const ASTR_PREFIX = 5;
-const DOT_PREFIX = 0;
-
 // local json storage
 export const KSM_CROWDLOAN_DB = ksmCrowdloan as KsmCrowdloan[];
 export const DOT_CROWDLOAN_DB = dotCrowdloan as DotContribute[];
-export const PLM_LOCKDROP_DB = plmLockdrop as ClaimEvent[];
 
 export const KSM_CROWDLOAN_PARTICIPANTS = ksmCrowdloandParticipants as { address: string }[];
 export const DOT_CROWDLOAN_PARTICIPANTS = dotCrowdloandParticipants as { address: string }[];
@@ -32,7 +29,7 @@ export const DOT_CROWDLOAN_REFERRALS = dotCrowdloanReferrals as { reference: str
 
 export const didParticipateInKsm = (polkadotAddress: string) => {
     // convert polkadot address to kusama address
-    const ksmAddr = polkadotUtils.encodeAddress(polkadotAddress, KSM_PREFIX);
+    const ksmAddr = utils.convertSs58Format(polkadotAddress, utils.AddressPrefix.KSM_PREFIX);
     const participation = _.find(KSM_CROWDLOAN_PARTICIPANTS, (i) => {
         return i.address === ksmAddr;
     });
@@ -51,22 +48,11 @@ export const getKsmParticipants = (contributors: KsmCrowdloan[]) => {
 export const didParticipateInLockdrop = (polkadotAddress: string) => {
     const participation = _.find(PLM_LOCKDROP_PARTICIPANTS, (i) => {
         // ensure the address in the database is ecoded in polkdaot prefix
-        const lockdropDotAddr = polkadotUtils.encodeAddress(i.address, DOT_PREFIX);
-        return lockdropDotAddr === polkadotAddress;
+        const lockdropDotAddr = utils.convertSs58Format(i.address, utils.AddressPrefix.DOT_PREFIX);
+        return lockdropDotAddr === utils.convertSs58Format(polkadotAddress, utils.AddressPrefix.DOT_PREFIX);
     });
 
     return !!participation;
-};
-
-export const getLockdropParticipants = (lockClaimEv: ClaimEvent[]) => {
-    return _.uniq(
-        _.map(lockClaimEv, (i) => {
-            // convert public key hex to polkadot address
-            // i.params[1].value = hex public key
-            const dotAddr = polkadotUtils.encodeAddress('0x' + i.params[1].value, DOT_PREFIX);
-            return dotAddr;
-        }),
-    );
 };
 
 // returns the number of referrals based on the referred accounts
@@ -74,12 +60,12 @@ export const getAllReferrals = (contributions: DotContribute[]) => {
     const contributionWithRefs = _.map(
         _.filter(contributions, (i) => {
             // filter contributions where it has a referral and the referral is not the contributor
-            return !!i.memo && polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) !== i.who;
+            return !!i.memo && utils.convertSs58Format('0x' + i.memo, utils.AddressPrefix.DOT_PREFIX) !== i.who;
         }),
         (j) => {
             return {
                 contributor: j.who,
-                referred: polkadotUtils.encodeAddress('0x' + j.memo, DOT_PREFIX),
+                referred: utils.convertSs58Format('0x' + j.memo, utils.AddressPrefix.DOT_PREFIX),
             };
         },
     );
@@ -115,7 +101,7 @@ const canGetSdnBonus = (account: string) => {
         return false;
     }
     // ensure that the provided account is in the correct format
-    const sdnAccount = polkadotUtils.encodeAddress(account, ASTR_PREFIX);
+    const sdnAccount = utils.convertSs58Format(account, utils.AddressPrefix.ASTR_PREFIX);
 
     // note: I know this is ridiculously inefficient
     // search through reward distributions
@@ -173,7 +159,7 @@ export const getReferrals = (account: string) => {
 };
 
 const isValidReferral = (referralMemo: string) => {
-    const referralAddress = polkadotUtils.encodeAddress('0x' + referralMemo, DOT_PREFIX);
+    const referralAddress = utils.convertSs58Format('0x' + referralMemo, utils.AddressPrefix.DOT_PREFIX);
     const participated = _.find(DOT_CROWDLOAN_PARTICIPANTS, (i) => {
         return i.address === referralAddress;
     });
@@ -243,7 +229,7 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
     const withEarlyBonus = _.map(contributions, (i) => {
         //const isEarlyAdaptor = canGetSdnBonus(i.who) || didParticipateInLockdrop(i.who);
         const isEarlyBird = i.block_num < 7758292;
-        const referral = i.memo ? polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) : '';
+        const referral = i.memo ? utils.convertSs58Format('0x' + i.memo, utils.AddressPrefix.DOT_PREFIX) : '';
 
         progress += 1;
         console.log(`Finished ${progress} items out of ${totalItems}`);
