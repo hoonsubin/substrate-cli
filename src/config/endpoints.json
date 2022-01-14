@@ -1,0 +1,5 @@
+{
+    "polkadot": "wss://rpc.polkadot.io",
+    "shiden": "wss://rpc.shiden.astar.network",
+    "local": "ws://localhost:9944"
+}

@@ -1,166 +1,96 @@
-import { ApiPromise, WsProvider } from '@polkadot/api';
-import * as polkadotUtils from '@polkadot/util-crypto';
-import { saveAsCsv } from './utils';
-import claimData from './data/claim-complete.json';
+import * as utils from './utils';
 import _ from 'lodash';
+import * as polkadotCryptoUtils from '@polkadot/util-crypto';
+import * as polkadotUtils from '@polkadot/util';
+import BN from 'bn.js';
+import EthCrypto from 'eth-crypto';
+import { ClaimEvent } from './types';
+import BigNumber from 'bignumber.js';
 
-const endpoints = {
-    polkadot: 'wss://rpc.polkadot.io',
-    shiden: 'wss://rpc.shiden.astar.network',
-    local: 'ws://localhost:9944',
-};
+/*
+import firstLockdropClaims from './data/raw/first-lockdrop-claims.json';
+import secondLockdropClaims from './data/raw/second-lockdrop-claims.json';
+import additionalLockdropClaims from './data/bonus-reward-user-result.json';
+import secondLockdropClaimEvents from './data/raw/lockdrop-claim-complete.json';
+*/
 
-const shidenTypes = {
-    Keys: 'AccountId',
-    SmartContract: {
-        _enum: {
-            Evm: 'H160',
-            Wasm: 'AccountId',
-        },
-    },
-    EraIndex: 'u32',
-    EraStakingPoints: {
-        total: 'Balance',
-        stakers: 'BTreeMap<AccountId, Balance>',
-        _formerStakedEra: 'EraIndex',
-        claimedRewards: 'Balance',
-    },
-    EraRewardAndStake: {
-        rewards: 'Balance',
-        staked: 'Balance',
-    },
-};
+// vesting for lockdrop participants
+// 1000 days: 7 months
+// 30, 100, 300 days: 15 months
+
+// vesting for all normal participants
+// 96 weeks = 24 months
+// todo: need data for address, amount, and vesting period
 
 export default async function app() {
-    const provider = new WsProvider(endpoints.polkadot);
-    // Create our API with a default connection to the local node
-    const api = await (
-        await ApiPromise.create({
-            provider,
-        })
-    ).isReady;
+    const data = (await utils.readCsv(
+        '/Users/hoonkim/Projects/substrate-cli/src/data/crowdloan-reward-96weeks.csv',
+    )) as { address: string; amount: string; memo: string }[];
 
-    await getUnbondEvents(api);
-}
-
-interface ClaimEvent {
-    event_index: string;
-    block_num: number;
-    extrinsic_idx: number;
-    module_id: string;
-    event_id: string;
-    params: EventParam[];
-    event_idx: number;
-    extrinsic_hash: string;
-    block_timestamp: number;
-}
-
-interface EventParam {
-    type: string;
-    value: string;
-    value_raw: string;
-}
-
-const getLockdropParticipantBalance = async (api: ApiPromise) => {
-    const claimList = claimData as ClaimEvent[];
-
-    // get all lockdrop participants
-    const participantAddrList = _.map(claimList, (claimEv) => {
-        const pubkey = claimEv.params[1].value;
-        // encode public key to ss58 address
-        return polkadotUtils.encodeAddress('0x' + pubkey, 5);
-    });
-
-    // obtain all account balances in header
-    const currentAccountList = await api.query.system.account.multi(participantAddrList);
-
-    const currentBalances = _.map(currentAccountList, (value, index) => {
-        const { data } = value;
-
-        const address = participantAddrList[index];
-        return { address, freeBalance: data.free.toHuman(), reservedBalance: data.reserved.toHuman() };
-    });
-
-    // obtain all account balances in genesis
-    const genesisHash = await api.rpc.chain.getBlockHash(1);
-    console.log(`Genesis hash: ${genesisHash}`);
-
-    const genesisApi = await api.at(genesisHash);
-
-    const genesisQueryList = _.map(participantAddrList, (addr) => {
-        return [genesisApi.query.system.account, addr];
-    });
-
-    // we can only use this method due to storage metadata changes in old blocks
-    const genesisAccountList = await genesisApi.queryMulti(genesisQueryList as any);
-
-    const genesisBalances = _.map(genesisAccountList, (value, index) => {
-        const { data } = value as any;
-
-        const address = participantAddrList[index];
+    const res = _.map(data, (i) => {
+        const astarAddress = utils.convertSs58Format(i.address, utils.AddressPrefix.ASTR_PREFIX);
+        const amountInAstr = new BigNumber(i.amount).div(new BigNumber(10).pow(18));
         return {
-            address,
-            freeBalance: data.free.toHuman() as string,
-            reservedBalance: data.reserved.toHuman() as string,
+            account_id: astarAddress,
+            amount: amountInAstr.toFixed(),
         };
     });
 
-    // combine the genesis list and the header list
-    const combinedList = _.map(participantAddrList, (value, index) => {
-        const genesisBalance = genesisBalances[index];
-        const currentBalance = currentBalances[index];
+    await utils.saveAsCsv(res);
+}
 
-        return {
-            address: value,
-            genesisFree: genesisBalance.freeBalance,
-            genesisReserved: genesisBalance.reservedBalance,
-            currentFree: currentBalance.freeBalance,
-            currentReserved: currentBalance.reservedBalance,
-        };
+/*
+const lockdropParticipants = () => {
+    const ADDRESS_PREFIX = utils.AddressPrefix.DOT_PREFIX;
+    const firstLockdrop = firstLockdropClaims;
+    const secondLockdrop = secondLockdropClaims;
+    const secondLockdropClaimComplete = secondLockdropClaimEvents as ClaimEvent[];
+    const additionalLockdrop = additionalLockdropClaims;
+
+    const firstLockdropParticipants = _.map(firstLockdrop, (i) => {
+        const compressedPubKey = EthCrypto.publicKey.compress(i['public key'].replace('0x', ''));
+        // const eth = EthCrypto.publicKey.toAddress(compressedPubKey);
+        const ss58 = utils.convertSs58Format(utils.ss58FromEcdsaPublicKey(compressedPubKey), 0);
+        return { address: ss58 };
+    });
+    const secondLockdropParticipants = _.map(secondLockdrop, (i) => {
+        const ss58 = utils.convertSs58Format(i.plasmAddress as string, ADDRESS_PREFIX);
+        return { address: ss58 };
+    });
+    const secondLockdropFromEvent = _.map(secondLockdropClaimComplete, (i) => {
+        const ss58 = utils.convertSs58Format('0x' + i.params[1].value, ADDRESS_PREFIX);
+        return { address: ss58 };
     });
 
-    await saveAsCsv(combinedList);
+    const additionalLockdropApplicants = _.map(additionalLockdrop, (i) => {
+        const ss58 = utils.convertSs58Format(i.targetBonusAddress, ADDRESS_PREFIX);
+        return { address: ss58 };
+    });
 
-    //console.log(genesisAccountList[0].toHuman());
-
-    console.log('Finished saving');
+    const allParticipants = [
+        ...firstLockdropParticipants,
+        ...secondLockdropParticipants,
+        ...secondLockdropFromEvent,
+        ...additionalLockdropApplicants,
+    ];
+    return _.uniq(allParticipants);
 };
+*/
 
-const getUnbondEvents = async (api: ApiPromise) => {
-    // Set the Start and Eng blocknumber.
-    // This script will search the events in the blocks generated between [endBlockNumber, startBlockNumber]
-    const startBlockNumber = 7362891;
-    const endBlockNumber = 7334256;
-    if (startBlockNumber < endBlockNumber) {
-        console.error('StartBlockNumber should be more than EndBlockNumber');
-        return;
-    }
+const durationToVestingSchedule = (startingBlock: number, totalAmount: BN, durationMonths: number) => {
+    const ONE_MONTH = 28 * 24 * 60 * 60;
+    const BLOCK_PER_SECOND = 12;
+    // one month in block numbers
+    const ONE_MONTH_BLOCKS_PER_12_SECONDS = ONE_MONTH / BLOCK_PER_SECOND;
 
-    // Loop until reaching the endBlockNumber
-    let currentBlockNumber = startBlockNumber + 1;
-    let output = new Array();
-    while (--currentBlockNumber >= endBlockNumber) {
-        const currentBlockHash = await api.rpc.chain.getBlockHash(currentBlockNumber);
-        const currentApi = await api.at(currentBlockHash);
-        const currentTime = await currentApi.query.timestamp.now();
-        console.log(`last header hash ${currentBlockHash.toHex()} (at #${currentBlockNumber})`);
+    const totalVestedBlocks = ONE_MONTH_BLOCKS_PER_12_SECONDS * durationMonths;
+    //console.log(totalVestedBlocks)
+    // amount per block * total vested block number must equal the total amount
+    const amountPerBlock = totalAmount.divn(totalVestedBlocks);
 
-        await (
-            await currentApi.query.system.events()
-        ).map((eventRecord) => {
-            const event = eventRecord.event;
-            if (event.section === 'staking' && event.method === 'Unbonded') {
-                console.log(`${event.data}`);
-                output.push({
-                    timestamp: new Date(currentTime.toNumber()).toISOString(),
-                    blockNumber: currentBlockNumber,
-                    accountId: event.data[0],
-                    amount: event.data[1],
-                });
-            }
-        });
-    }
-
-    // Export to CSV
-    await saveAsCsv(output);
+    return {
+        locked: totalAmount,
+        perBlock: amountPerBlock,
+        startingBlock,
+    };
 };
