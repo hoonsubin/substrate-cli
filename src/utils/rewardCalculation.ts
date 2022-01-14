@@ -111,10 +111,14 @@ export const getAllReferrals = (contributions: DotContribute[]) => {
 };
 
 const canGetSdnBonus = (account: string) => {
+    if (!didParticipateInKsm(account)) {
+        return false;
+    }
     // ensure that the provided account is in the correct format
     const sdnAccount = polkadotUtils.encodeAddress(account, ASTR_PREFIX);
 
     // note: I know this is ridiculously inefficient
+    // search through reward distributions
     const ksmCrowdloanReward = _.find(SDN_KSM_REWARD_DB, (i) => {
         return i.account_id === sdnAccount;
     });
@@ -172,20 +176,19 @@ const isValidReferral = (referralMemo: string) => {
     const referralAddress = polkadotUtils.encodeAddress('0x' + referralMemo, DOT_PREFIX);
     const participated = _.find(DOT_CROWDLOAN_PARTICIPANTS, (i) => {
         return i.address === referralAddress;
-    })
+    });
 
     if (participated) {
-        return true
+        return true;
     }
     return false;
-}
+};
 
 export const calculateBonusRewardPerContribution = (contributor: DotContribute) => {
-
     // 1 DOT = 101.610752585225000000 ASTR
     // 1 Femto = 1 DOT / 1^10
-    const DOT_REWARD_MULTIPLIER = 101.610752585225000000;
-    
+    const DOT_REWARD_MULTIPLIER = 101.610752585225;
+
     const contribution = new BN(contributor.contributing);
 
     let earlyBirdBonus = new BN(0);
@@ -216,12 +219,11 @@ export const calculateBonusRewardPerContribution = (contributor: DotContribute) 
 
     // calculate referrer bonus
     if (getReferrals(contributor.who).length > 0) {
-
     }
 
     let totalBonus = new BN(0);
 
-    return {earlyBirdBonus, earlyAdopter, totalBonus};
+    return { earlyBirdBonus, earlyAdopter, totalBonus };
 };
 
 // returns a list of Ethereum accounts that participated in the lockdrop but did (could) not participate in the crowdloan
@@ -239,6 +241,10 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
     console.log(`Total contributions ${totalItems}`);
     let progress = 0;
     const withEarlyBonus = _.map(contributions, (i) => {
+        //const isEarlyAdaptor = canGetSdnBonus(i.who) || didParticipateInLockdrop(i.who);
+        const isEarlyBird = i.block_num < 7758292;
+        const referral = i.memo ? polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) : '';
+
         progress += 1;
         console.log(`Finished ${progress} items out of ${totalItems}`);
         return {
@@ -247,9 +253,10 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
             timestamp: i.block_timestamp,
             extrinsicId: i.extrinsic_index,
             blockNumber: i.block_num,
-            referral: i.memo ? polkadotUtils.encodeAddress('0x' + i.memo, DOT_PREFIX) : '',
             lockdropBonus: didParticipateInLockdrop(i.who) ? 'yes' : 'no',
             ksmBonus: canGetSdnBonus(i.who) ? 'yes' : 'no',
+            earlyBirdBonus: isEarlyBird ? 'yes' : 'no',
+            referral,
         };
     });
     return withEarlyBonus;

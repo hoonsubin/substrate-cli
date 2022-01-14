@@ -1,10 +1,13 @@
 import * as utils from './utils';
 import _ from 'lodash';
 import * as polkadotCryptoUtils from '@polkadot/util-crypto';
+import * as polkadotUtils from '@polkadot/util';
 import BN from 'bn.js';
+import EthCrypto from 'eth-crypto';
 
-import lockdropDump from './data/raw/second-lockdrop-claims.json';
-import lockEvent from './data/raw/lockdrop-second-event.json';
+import secondLockdropClaims from './data/raw/second-lockdrop-claims.json';
+import firstLockdropClaims from './data/raw/first-lockdrop-claims.json';
+import earlyBirdRegistration from './data/bonus-reward-user-result.json';
 import plmSnapshot from './data/raw/plasm-balance-snapshot.json';
 
 interface LockdropParticipantData {
@@ -19,35 +22,47 @@ interface LockdropParticipantData {
 // 1000 days: 7 months
 // 30, 100, 300 days: 15 months
 
+// todo: redo the lockdrop participant bonus
+
 export default async function app() {
-    /*
-    const res = _.map(lockdropDump, (i) => {
+    const res = utils.getBonusStatusFullReport(utils.DOT_CROWDLOAN_DB);
 
-        const lockdropData = _.find(utils.PLM_LOCKDROP_DB, (j) => {
-            const formatAddr = polkadotCryptoUtils.encodeAddress('0x' + j.params[1].value, 5);
-            return formatAddr === polkadotCryptoUtils.encodeAddress(i.plasmAddress, 5);
-        });
+    await utils.saveAsCsv(res);
+}
 
-        if (!lockdropData) {
-            console.log(`Cannot find balance for ${i.transactionHash}`);
-        }
+const lockdropParticipantList = () => {
+    const firstLockdrop = firstLockdropClaims;
+    const secondLockdrop = secondLockdropClaims;
+    const additionalClaims = earlyBirdRegistration;
 
-        const reward = lockdropData?.params[2].value || '0';
+    const firstParticipants = _.map(firstLockdrop, (i) => {
+        const plmAddress = generatePlmAddress(EthCrypto.publicKey.compress(i['public key'].replace('0x', '')));
+        return plmAddress;
+    })
+    const secondParticipants = _.map(secondLockdrop, (i) => {
+        return polkadotCryptoUtils.encodeAddress(i.plasmAddress, 0);
+    });
+    const additionalParticipants = _.map(additionalClaims, (i) => {
+        return polkadotCryptoUtils.encodeAddress(i.targetBonusAddress, 0);
+    });
 
-        const rewardData: LockdropParticipantData = {
-            ethereumAddress: i.ethereumAddress,
-            plasmAddress: i.plasmAddress,
-            lockDuration: i.lockDuration,
-            reward,
-            lockTxHash: i.transactionHash,
+    const allParticipants = _.uniq([...firstParticipants, ...secondParticipants, ...additionalParticipants]);
+
+    return _.map(allParticipants, (i) => {
+        return {
+            address: i,
         };
-        return rewardData;
     });
-*/
-    console.log({
-        lockEvent: lockEvent.length,
-        claimEvent: lockdropDump.length
-    });
+};
 
-    //await utils.saveAsCsv(res);
+/**
+ * generates a Plasm public address with the given ethereum public key
+ * @param ethPubKey an compressed ECDSA public key. With or without the 0x prefix
+ */
+ const generatePlmAddress = (publicKey: string) => {
+    // hash to blake2
+    const plasmPubKey = polkadotCryptoUtils.blake2AsU8a(polkadotUtils.hexToU8a(publicKey.startsWith('0x') ? publicKey : '0x' + publicKey), 256);
+    // encode address
+    const plasmAddress = polkadotCryptoUtils.encodeAddress(plasmPubKey, 5);
+    return plasmAddress;
 }
