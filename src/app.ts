@@ -31,42 +31,19 @@ import plmBalanceSnapshot from './data/raw/plasm-balance-snapshot.json';
 
 import lockdropParticipantPlmBalance from './data/lockdrop-participant-balances.json';
 export default async function app() {
-    /*
-    const firstLockdropList = await firstLockdropClaimToEvent();
-    const secondLockdropList = await realtimeLockdropClaimToEvent();
+    const first = firstLockdropClaimToEvent();
+    const second = await realtimeLockdropClaimToEvent();
+    const both = [...first, ...second];
 
-    const fullList = [...firstLockdropList, ...secondLockdropList];
-    */
-
-    const allParticipants = lockdropParticipantPlmBalance;
-    // todo: prioritize longer lock durations
-    // remove all duplicate locks with a shorter duration
-    // return a list of PLM account, balance, and lock duration without duplicates
-
-    // reorder the list by the lock duration in ascending order
-    const sortedLocks = _.orderBy(allParticipants, ['lockDuration'], ['desc']);
-    // remove all duplicate addresses from the first
-    const cleanData = _.uniqBy(sortedLocks, 'plasmAddress');
-
-    const balanceData = plmBalanceSnapshot;
-
-    const lockdropVestingList = _.map(cleanData, (i) => {
-        const vestingMonths = i.lockDuration === 1000 ? 7 : 15;
-        const plmAmount = new BigNumber(
-            _.find(balanceData, (j) => {
-                return i.plasmAddress === j.address;
-            })?.balance || 0,
-        );
-
-        const astrAmount = plmAmount.div(10);
-        return {
-            address: i.plasmAddress,
-            astrAmount: astrAmount.div(new BigNumber(10).pow(18)).toFixed(),
-            vestingMonths,
-        };
+    //await utils.saveAsCsv(both);
+    console.log({
+        firstEvents: first.length,
+        secondEvents: second.length,
+        allEvents: both.length,
+        uniqeAccounts: _.uniqBy(both, 'plasmAddress').length,
     });
 
-    await utils.saveAsCsv(lockdropVestingList);
+    await utils.saveAsCsv(first, './first-lockdrop-claims');
 }
 
 const astarBasicReward = (contribution: DotContribute[]) => {
@@ -97,7 +74,7 @@ interface LockdropParticipant {
     plmBalance: string;
 }
 
-const firstLockdropClaimToEvent = async () => {
+const firstLockdropClaimToEvent = () => {
     const lockdropClaimData = firstLockdropClaims;
     const lockdropLockEvents = firstLockdropLockEvent;
 
