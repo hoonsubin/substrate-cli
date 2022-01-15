@@ -3,41 +3,172 @@ import _ from 'lodash';
 import * as polkadotCryptoUtils from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
 import BN from 'bn.js';
-import EthCrypto from 'eth-crypto';
-import { ClaimEvent } from './types';
+import { ClaimEvent, DotContribute } from './types';
 import BigNumber from 'bignumber.js';
+import Web3 from 'web3';
+import EthCrypto from 'eth-crypto';
 
 /*
-import firstLockdropClaims from './data/raw/first-lockdrop-claims.json';
 import secondLockdropClaims from './data/raw/second-lockdrop-claims.json';
 import additionalLockdropClaims from './data/bonus-reward-user-result.json';
 import secondLockdropClaimEvents from './data/raw/lockdrop-claim-complete.json';
 */
+
+import firstLockdropClaims from './data/raw/first-lockdrop-claims.json';
+import firstLockdropLockEvent from './data/raw/lockdrop-first-event.json';
+
+import secondLockdropLockEvent from './data/raw/lockdrop-second-event.json';
+// at block no 3M
+import plmBalanceSnapshot from './data/raw/plasm-balance-snapshot.json';
 
 // vesting for lockdrop participants
 // 1000 days: 7 months
 // 30, 100, 300 days: 15 months
 
 // vesting for all normal participants
-// 96 weeks = 24 months
+// 88 weeks = 22 months
 // todo: need data for address, amount, and vesting period
 
+import lockdropParticipantPlmBalance from './data/lockdrop-participant-balances.json';
 export default async function app() {
-    const data = (await utils.readCsv(
-        '/Users/hoonkim/Projects/substrate-cli/src/data/crowdloan-reward-96weeks.csv',
-    )) as { address: string; amount: string; memo: string }[];
+    /*
+    const firstLockdropList = await firstLockdropClaimToEvent();
+    const secondLockdropList = await realtimeLockdropClaimToEvent();
 
-    const res = _.map(data, (i) => {
-        const astarAddress = utils.convertSs58Format(i.address, utils.AddressPrefix.ASTR_PREFIX);
-        const amountInAstr = new BigNumber(i.amount).div(new BigNumber(10).pow(18));
+    const fullList = [...firstLockdropList, ...secondLockdropList];
+    */
+
+    const allParticipants = lockdropParticipantPlmBalance;
+    // todo: prioritize longer lock durations
+    // remove all duplicate locks with a shorter duration
+    // return a list of PLM account, balance, and lock duration without duplicates
+
+    // reorder the list by the lock duration in ascending order
+    const sortedLocks = _.orderBy(allParticipants, ['lockDuration'], ['desc']);
+    // remove all duplicate addresses from the first
+    const cleanData = _.uniqBy(sortedLocks, 'plasmAddress');
+
+    const balanceData = plmBalanceSnapshot;
+
+    const lockdropVestingList = _.map(cleanData, (i) => {
+        const vestingMonths = i.lockDuration === 1000 ? 7 : 15;
+        const plmAmount = new BigNumber(
+            _.find(balanceData, (j) => {
+                return i.plasmAddress === j.address;
+            })?.balance || 0,
+        );
+
+        const astrAmount = plmAmount.div(10);
         return {
-            account_id: astarAddress,
-            amount: amountInAstr.toFixed(),
+            address: i.plasmAddress,
+            astrAmount: astrAmount.div(new BigNumber(10).pow(18)).toFixed(),
+            vestingMonths,
         };
     });
 
-    await utils.saveAsCsv(res);
+    await utils.saveAsCsv(lockdropVestingList);
 }
+
+const astarBasicReward = (contribution: DotContribute[]) => {
+    const rewardMultiplier = new BigNumber('101.610752585225');
+
+    const data = _.map(contribution, (i) => {
+        const dotAmount = new BigNumber(i.contributed).div(new BigNumber(10).pow(10));
+        const astrBaseReward = dotAmount.multipliedBy(rewardMultiplier);
+        return {
+            who: i.who,
+            dotAmount: dotAmount.toFixed(),
+            astrBaseReward: astrBaseReward.toFixed(),
+            referer: i.memo,
+            blockNumber: i.block_num,
+        };
+    });
+    return data;
+};
+
+interface LockdropParticipant {
+    transactionHash: string;
+    ethAddress: string;
+    // in ETH unit
+    lockedEth: string;
+    lockDuration: number;
+    plasmAddress: string;
+    // in PLM unit
+    plmBalance: string;
+}
+
+const firstLockdropClaimToEvent = async () => {
+    const lockdropClaimData = firstLockdropClaims;
+    const lockdropLockEvents = firstLockdropLockEvent;
+
+    const lockdropCompleteInfo = _.map(lockdropClaimData, (i) => {
+        const ethAddress = EthCrypto.publicKey.toAddress(i.public_key.replace('0x', ''));
+        const plmAddress = utils.ss58FromEcdsaPublicKey(EthCrypto.publicKey.compress(i.public_key.replace('0x', '')));
+
+        const allLockEventsByOwner = _.filter(lockdropLockEvents, (j) => {
+            return j.lockOwner === ethAddress;
+        });
+
+        const plmAccountBalance = _.find(plmBalanceSnapshot, (j) => {
+            return j.address === plmAddress;
+        });
+
+        const plmUnitBalance = plmAccountBalance
+            ? new BigNumber(plmAccountBalance.balance).div(new BigNumber(10).pow(15))
+            : new BigNumber(0);
+
+        const lockdropReport = _.map(allLockEventsByOwner, (j) => {
+            const ethUnitValue = Web3.utils.fromWei(j.eth, 'ether');
+            return {
+                transactionHash: j.transactionHash,
+                ethAddress: ethAddress,
+                lockedEth: ethUnitValue,
+                lockDuration: j.duration,
+                plasmAddress: plmAddress,
+                plmBalance: plmUnitBalance.toFixed(),
+            } as LockdropParticipant;
+        });
+
+        return lockdropReport;
+    });
+
+    return _.flatten(lockdropCompleteInfo);
+};
+
+const realtimeLockdropClaimToEvent = async () => {
+    // read the csv raw data
+    const lockdropClaimData = (await utils.readCsv(
+        '/Users/hoonkim/Projects/substrate-cli/src/data/raw/plasm-realtime-lockdrop-recipients.csv',
+    )) as { transaction_hash: string; account_id: string }[];
+    const lockdropLockEvents = secondLockdropLockEvent;
+
+    const lockdropCompleteInfo = _.map(lockdropClaimData, (i) => {
+        // find the lock event
+        const lockEvent = _.find(lockdropLockEvents, (j) => {
+            return i.transaction_hash === j.transactionHash;
+        });
+
+        const plmAccount = _.find(plmBalanceSnapshot, (j) => {
+            return j.address === i.account_id;
+        });
+
+        const plmUnitBalance = plmAccount
+            ? new BigNumber(plmAccount.balance).div(new BigNumber(10).pow(15))
+            : new BigNumber(0);
+        const ethUnitValue = Web3.utils.fromWei(lockEvent ? lockEvent.eth : '0', 'ether');
+
+        return {
+            transactionHash: i.transaction_hash,
+            ethAddress: lockEvent ? lockEvent.lockOwner : '',
+            lockedEth: ethUnitValue,
+            lockDuration: lockEvent ? lockEvent.duration : 0,
+            plasmAddress: i.account_id,
+            plmBalance: plmUnitBalance.toFixed(),
+        } as LockdropParticipant;
+    });
+
+    return lockdropCompleteInfo;
+};
 
 /*
 const lockdropParticipants = () => {
@@ -93,4 +224,34 @@ const durationToVestingSchedule = (startingBlock: number, totalAmount: BN, durat
         perBlock: amountPerBlock,
         startingBlock,
     };
+};
+
+const readCrowdloanRewardList = async () => {
+    const data = (await utils.readCsv(
+        '/Users/hoonkim/Projects/substrate-cli/report/astar-crowdloan-reward-88w.csv',
+    )) as {
+        account_id: string;
+        amount: string;
+        memo: string;
+    }[];
+
+    const res = _.map(data, (i) => {
+        const polkadotAddress = utils.convertSs58Format(i.account_id, utils.AddressPrefix.DOT_PREFIX);
+        //const amountInAstr = new BigNumber(i.amount).div(new BigNumber(10).pow(18));
+        return {
+            account_id: polkadotAddress,
+            amount: i.amount,
+            memo: i.memo,
+        };
+    });
+
+    const onlyPartners = _.filter(res, (i) => {
+        return i.memo !== '';
+    });
+    const withoutPartners = _.filter(res, (i) => {
+        return i.memo === '';
+    });
+
+    await utils.saveAsCsv(onlyPartners, './crowdloan-partners.csv');
+    await utils.saveAsCsv(withoutPartners, './crowdloan-rewards.csv');
 };
