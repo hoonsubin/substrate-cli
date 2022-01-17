@@ -25,26 +25,131 @@ import plmBalanceSnapshot from './data/raw/plasm-balance-snapshot.json';
 // 1000 days: 7 months
 // 30, 100, 300 days: 15 months
 
+// transactions are enabled from 214310
+
 // vesting for all normal participants
 // 88 weeks = 22 months
 // todo: need data for address, amount, and vesting period
 
 import lockdropParticipantPlmBalance from './data/lockdrop-participant-balances.json';
-export default async function app() {
-    const first = firstLockdropClaimToEvent();
-    const second = await realtimeLockdropClaimToEvent();
-    const both = [...first, ...second];
 
-    //await utils.saveAsCsv(both);
-    console.log({
-        firstEvents: first.length,
-        secondEvents: second.length,
-        allEvents: both.length,
-        uniqeAccounts: _.uniqBy(both, 'plasmAddress').length,
+interface RewardData {
+    account_id: string;
+    amount: string;
+}
+
+interface PlmRewardData extends RewardData {
+    vestingFor: '7' | '15';
+}
+
+export default async function app() {
+
+
+    /*
+    const plasmSnapshotList = (await utils.readCsv(
+        '/Users/hoonkim/Desktop/Shared/third-batch-vesting/astr-distribution-list-for-plasm.csv',
+    )) as PlmRewardData[];
+    
+    const withoutSmallBalance = _.filter(plasmSnapshotList, (i) => {
+        const balance = new BigNumber(i.amount);
+
+        return balance.isGreaterThan(500);
     });
 
-    await utils.saveAsCsv(first, './first-lockdrop-claims');
+    const roundedRewards = _.map(withoutSmallBalance, (i) => {
+        const balance = new BigNumber(new BigNumber(i.amount).toFixed(2, 1));
+        return {
+            account_id: i.account_id,
+            amount: balance.toFixed(),
+            vestingFor: i.vestingFor,
+        };
+    });
+
+    const lockdropTierList = splitLockdropTiers(roundedRewards);
+
+    const tier1Vesting = withTenPercentInitVal(lockdropTierList.tier1Vesting);
+    const tier2Vesting = withTenPercentInitVal(lockdropTierList.tier2Vesting);
+    
+    const totalValue = {
+        tier1ShortVesting: getTotalRewards(tier1Vesting.initialTransfers).toFixed(),
+        tier1LongVesting: getTotalRewards(tier1Vesting.vestedTransfers).toFixed(),
+        tier2ShortVesting: getTotalRewards(tier2Vesting.initialTransfers).toFixed(),
+        tier2LongVesting: getTotalRewards(tier2Vesting.vestedTransfers).toFixed(),
+    }
+
+    console.log(totalValue);
+    await utils.saveAsJson(tier1Vesting.initialTransfers, './lockdrop-tier1-short-vesting.json');
+    await utils.saveAsJson(tier2Vesting.initialTransfers, './lockdrop-tier2-short-vesting.json');
+    await utils.saveAsJson(tier1Vesting.vestedTransfers, './lockdrop-tier1-long-vesting.json');
+    await utils.saveAsJson(tier2Vesting.vestedTransfers, './lockdrop-tier2-long-vesting.json');
+    */
 }
+
+const splitLockdropTiers = (data: PlmRewardData[]) => {
+    const tier1Vesting = _.map(
+        _.filter(data, (i) => {
+            return i.vestingFor === '7';
+        }),
+        (j) => {
+            return {
+                account_id: j.account_id,
+                amount: j.amount,
+            } as RewardData;
+        },
+    );
+
+    const tier2Vesting = _.map(
+        _.filter(data, (i) => {
+            return i.vestingFor !== '7';
+        }),
+        (j) => {
+            return {
+                account_id: j.account_id,
+                amount: j.amount,
+            } as RewardData;
+        },
+    );
+
+    return {
+        tier1Vesting,
+        tier2Vesting,
+    };
+};
+
+const getTotalRewards = (data: RewardData[]) => {
+    const totalRewards = _.reduce(
+        data,
+        (i, j) => {
+            return i.plus(new BigNumber(j.amount));
+        },
+        new BigNumber(0),
+    );
+    return totalRewards;
+};
+
+// splits the list into two, one for the initial distribution and one for the vested distribution
+const withTenPercentInitVal = (data: RewardData[]) => {
+    const initialTransfers = _.map(data, (i) => {
+        const initiallyUsable = new BigNumber(i.amount).multipliedBy(0.1);
+        return {
+            account_id: i.account_id,
+            amount: initiallyUsable.toFixed(),
+        };
+    });
+
+    const vestedTransfers = _.map(data, (i) => {
+        const vestedTransfer = new BigNumber(i.amount).multipliedBy(0.9);
+        return {
+            account_id: i.account_id,
+            amount: vestedTransfer.toFixed(),
+        };
+    });
+
+    return {
+        initialTransfers,
+        vestedTransfers,
+    };
+};
 
 const astarBasicReward = (contribution: DotContribute[]) => {
     const rewardMultiplier = new BigNumber('101.610752585225');
