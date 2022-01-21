@@ -24,3 +24,12 @@ export interface DotContribute {
     memo: string;
     status: number;
 }
+
+export interface RewardData {
+    account_id: string;
+    amount: string;
+}
+
+export interface PlmRewardData extends RewardData {
+    vestingFor: '7' | '15';
+}

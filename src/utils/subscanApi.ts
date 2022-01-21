@@ -1,4 +1,4 @@
-import axios, {AxiosInstance} from 'axios';
+import axios, { AxiosInstance } from 'axios';
 
 export class SubscanApi {
     private _endpoint: string;
@@ -11,12 +11,12 @@ export class SubscanApi {
             timeout: 1000,
             headers: {
                 'Content-Type': 'application/json',
-                'X-API-Key': apiKey
-            }
-        })
+                'X-API-Key': apiKey,
+            },
+        });
     }
 
-    public contribute() {
-
+    public async extrinsicHash(extrinsic_index?: string, hash?: string, events_limit?: number) {
+        const BASE = '/api/scan/extrinsic';
     }
 }

@@ -12,7 +12,7 @@ import BigNumber from 'bignumber.js';
 
 import _ from 'lodash';
 import BN from 'bn.js';
-import { KsmCrowdloan, ClaimEvent, DotContribute } from '../types';
+import { KsmCrowdloan, ClaimEvent, DotContribute, RewardData, PlmRewardData } from '../types';
 
 // local json storage
 export const KSM_CROWDLOAN_DB = ksmCrowdloan as KsmCrowdloan[];
@@ -260,4 +260,87 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
         };
     });
     return withEarlyBonus;
+};
+
+export const splitLockdropTiers = (data: PlmRewardData[]) => {
+    const tier1Vesting = _.map(
+        _.filter(data, (i) => {
+            return i.vestingFor === '7';
+        }),
+        (j) => {
+            return {
+                account_id: j.account_id,
+                amount: j.amount,
+            } as RewardData;
+        },
+    );
+
+    const tier2Vesting = _.map(
+        _.filter(data, (i) => {
+            return i.vestingFor !== '7';
+        }),
+        (j) => {
+            return {
+                account_id: j.account_id,
+                amount: j.amount,
+            } as RewardData;
+        },
+    );
+
+    return {
+        tier1Vesting,
+        tier2Vesting,
+    };
+};
+
+export const getTotalRewards = (data: RewardData[]) => {
+    const totalRewards = _.reduce(
+        data,
+        (i, j) => {
+            return i.plus(new BigNumber(j.amount));
+        },
+        new BigNumber(0),
+    );
+    return totalRewards;
+};
+
+// splits the list into two, one for the initial distribution and one for the vested distribution
+export const withTenPercentInitVal = (data: RewardData[]) => {
+    const initialTransfers = _.map(data, (i) => {
+        const initiallyUsable = new BigNumber(i.amount).multipliedBy(0.1);
+        return {
+            account_id: i.account_id,
+            amount: initiallyUsable.toFixed(),
+        };
+    });
+
+    const vestedTransfers = _.map(data, (i) => {
+        const vestedTransfer = new BigNumber(i.amount).multipliedBy(0.9);
+        return {
+            account_id: i.account_id,
+            amount: vestedTransfer.toFixed(),
+        };
+    });
+
+    return {
+        initialTransfers,
+        vestedTransfers,
+    };
+};
+
+const astarBasicReward = (contribution: DotContribute[]) => {
+    const rewardMultiplier = new BigNumber('101.610752585225');
+
+    const data = _.map(contribution, (i) => {
+        const dotAmount = new BigNumber(i.contributed).div(new BigNumber(10).pow(10));
+        const astrBaseReward = dotAmount.multipliedBy(rewardMultiplier);
+        return {
+            who: i.who,
+            dotAmount: dotAmount.toFixed(),
+            astrBaseReward: astrBaseReward.toFixed(),
+            referer: i.memo,
+            blockNumber: i.block_num,
+        };
+    });
+    return data;
 };
