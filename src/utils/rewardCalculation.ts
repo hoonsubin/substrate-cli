@@ -8,11 +8,11 @@ import dotCrowdloandParticipants from '../data/dot-crowdloan-participants.json';
 import sdnSnapshot from '../data/sdn-balance-snapshot-753857.json';
 import sdnKsmReward from '../data/sdn-ksm-crowdloan-reward.json';
 import dotCrowdloanReferrals from '../data/dot-crowdloan-referrals.json';
-
+import BigNumber from 'bignumber.js';
 
 import _ from 'lodash';
 import BN from 'bn.js';
-import { KsmCrowdloan, ClaimEvent, DotContribute } from '../types';
+import { KsmCrowdloan, ClaimEvent, DotContribute, RewardData, PlmRewardData } from '../types';
 
 // local json storage
 export const KSM_CROWDLOAN_DB = ksmCrowdloan as KsmCrowdloan[];
@@ -158,8 +158,14 @@ export const getReferrals = (account: string) => {
     }
 };
 
-const isValidReferral = (referralMemo: string) => {
+const isValidReferral = (referrer: string, referralMemo: string) => {
     const referralAddress = utils.convertSs58Format('0x' + referralMemo, utils.AddressPrefix.DOT_PREFIX);
+
+    // no self-referencing
+    if (referrer === referralAddress) {
+        return false;
+    }
+
     const participated = _.find(DOT_CROWDLOAN_PARTICIPANTS, (i) => {
         return i.address === referralAddress;
     });
@@ -170,27 +176,38 @@ const isValidReferral = (referralMemo: string) => {
     return false;
 };
 
-export const calculateBonusRewardPerContribution = (contributor: DotContribute) => {
+const calculateReferrerBonus = (contribution: DotContribute) => {};
+
+const astarBaseRewardPerDot = (dotContribution: string) => {
     // 1 DOT = 101.610752585225000000 ASTR
     // 1 Femto = 1 DOT / 1^10
-    const DOT_REWARD_MULTIPLIER = 101.610752585225;
+    const DOT_REWARD_MULTIPLIER = new BigNumber('101.610752585225');
 
-    const contribution = new BN(contributor.contributing);
+    const dotAmount = new BigNumber(dotContribution).div(new BigNumber(10).pow(10));
+    // note: this calculates in Femto, not ASTR
+    const astrBaseReward = dotAmount.multipliedBy(DOT_REWARD_MULTIPLIER);
 
-    let earlyBirdBonus = new BN(0);
-    let earlyAdopter = new BN(0);
-    let referralBonus = new BN(0);
+    return astrBaseReward;
+};
+
+export const calculateRewardPerContribution = (contributor: DotContribute) => {
+
+    const contributionReward = astarBaseRewardPerDot(contributor.contributing);
+
+    let earlyBirdBonus = new BigNumber(0);
+    let earlyAdopter = new BigNumber(0);
+    let referralBonus = new BigNumber(0);
 
     // calculate early bird bonus
     if (contributor.block_num < 7758292) {
         // 20% bonus for people joined the auction before block number 7758292
         // 1 DOT = 101.61 * 0.2 = 20.322 ASTR
-        earlyBirdBonus = contribution.divn(1 ** 10).muln(DOT_REWARD_MULTIPLIER * 0.2); // ASTR
+        earlyBirdBonus = contributionReward.multipliedBy(0.2);
     }
 
     if (didParticipateInLockdrop(contributor.who) || canGetSdnBonus(contributor.who)) {
         // early bird bonus formula 1 DOT = 101.61 ASTR * 0.1 = 10.161 ASTR
-        earlyAdopter = contribution.muln(DOT_REWARD_MULTIPLIER * 0.1); // ASTR
+        earlyAdopter = contributionReward.multipliedBy(0.1);
     }
 
     // the following bonuses should be applied separately after all the other calculations
@@ -199,17 +216,14 @@ export const calculateBonusRewardPerContribution = (contributor: DotContribute) 
     // referred account = 10 ASTR per DOT of referring account's lock
 
     // calculate referral bonus
-    if (isValidReferral(contributor.memo)) {
+    if (isValidReferral(contributor.who, contributor.memo)) {
         // 1% of the total contributed amount
+        referralBonus = contributionReward.multipliedBy(0.1);
     }
 
-    // calculate referrer bonus
-    if (getReferrals(contributor.who).length > 0) {
-    }
+    let totalBonus = contributionReward.plus(earlyBirdBonus.plus(earlyAdopter).plus(referralBonus));
 
-    let totalBonus = new BN(0);
-
-    return { earlyBirdBonus, earlyAdopter, totalBonus };
+    return { baseReward: contributionReward.toFixed(), referralBonus, earlyBirdBonus, earlyAdopter, totalBonus };
 };
 
 // returns a list of Ethereum accounts that participated in the lockdrop but did (could) not participate in the crowdloan
@@ -246,4 +260,87 @@ export const getBonusStatusFullReport = (contributions: DotContribute[]) => {
         };
     });
     return withEarlyBonus;
+};
+
+export const splitLockdropTiers = (data: PlmRewardData[]) => {
+    const tier1Vesting = _.map(
+        _.filter(data, (i) => {
+            return i.vestingFor === '7';
+        }),
+        (j) => {
+            return {
+                account_id: j.account_id,
+                amount: j.amount,
+            } as RewardData;
+        },
+    );
+
+    const tier2Vesting = _.map(
+        _.filter(data, (i) => {
+            return i.vestingFor !== '7';
+        }),
+        (j) => {
+            return {
+                account_id: j.account_id,
+                amount: j.amount,
+            } as RewardData;
+        },
+    );
+
+    return {
+        tier1Vesting,
+        tier2Vesting,
+    };
+};
+
+export const getTotalRewards = (data: RewardData[]) => {
+    const totalRewards = _.reduce(
+        data,
+        (i, j) => {
+            return i.plus(new BigNumber(j.amount));
+        },
+        new BigNumber(0),
+    );
+    return totalRewards;
+};
+
+// splits the list into two, one for the initial distribution and one for the vested distribution
+export const withTenPercentInitVal = (data: RewardData[]) => {
+    const initialTransfers = _.map(data, (i) => {
+        const initiallyUsable = new BigNumber(i.amount).multipliedBy(0.1);
+        return {
+            account_id: i.account_id,
+            amount: initiallyUsable.toFixed(),
+        };
+    });
+
+    const vestedTransfers = _.map(data, (i) => {
+        const vestedTransfer = new BigNumber(i.amount).multipliedBy(0.9);
+        return {
+            account_id: i.account_id,
+            amount: vestedTransfer.toFixed(),
+        };
+    });
+
+    return {
+        initialTransfers,
+        vestedTransfers,
+    };
+};
+
+const astarBasicReward = (contribution: DotContribute[]) => {
+    const rewardMultiplier = new BigNumber('101.610752585225');
+
+    const data = _.map(contribution, (i) => {
+        const dotAmount = new BigNumber(i.contributed).div(new BigNumber(10).pow(10));
+        const astrBaseReward = dotAmount.multipliedBy(rewardMultiplier);
+        return {
+            who: i.who,
+            dotAmount: dotAmount.toFixed(),
+            astrBaseReward: astrBaseReward.toFixed(),
+            referer: i.memo,
+            blockNumber: i.block_num,
+        };
+    });
+    return data;
 };
