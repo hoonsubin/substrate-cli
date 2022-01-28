@@ -2,8 +2,7 @@ import * as utils from './utils';
 import _ from 'lodash';
 import * as polkadotCryptoUtils from '@polkadot/util-crypto';
 import * as polkadotUtils from '@polkadot/util';
-import BN from 'bn.js';
-import { PlmRewardData } from './types';
+import { PlmRewardData, RewardData } from './types';
 import BigNumber from 'bignumber.js';
 import Web3 from 'web3';
 import EthCrypto from 'eth-crypto';
@@ -31,17 +30,9 @@ import plmBalanceSnapshot from './data/raw/plasm-balance-snapshot.json';
 // 88 weeks = 22 months
 // todo: need data for address, amount, and vesting period
 
-import lockdropParticipantPlmBalance from './data/lockdrop-participant-balances.json';
-import lockdropTier1VestingList from './data/lockdrop-tier1-short-vesting.json';
 
-
-import failedBatchCalls from './data/failed-batch-calls.json';
 
 export default async function app() {
-
-    const data = await utils.readCsv('/Users/hoonkim/Downloads/astar-polkadot-plo-data/third-batch-vesting/failed-10-percent-reward.csv');
-
-    await utils.saveAsJson(data as object[]);
 
     /*
     const plasmSnapshotList = (await utils.readCsv(
@@ -82,6 +73,8 @@ export default async function app() {
     await utils.saveAsCsv(tier2Vesting.vestedTransfers, './lockdrop-tier2-long-vesting.csv');
     */
 }
+
+
 
 interface LockdropParticipant {
     transactionHash: string;
