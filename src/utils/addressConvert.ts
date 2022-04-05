@@ -23,7 +23,7 @@ export const convertSs58Format = (addressOrAccountId: string, prefix: AddressPre
 
 /**
  * generates a Plasm public address with the given ethereum public key
- * @param ethPubKey an compressed ECDSA public key. With or without the 0x prefix
+ * @param publicKey an compressed ECDSA public key. With or without the 0x prefix
  */
 export const ss58FromEcdsaPublicKey = (publicKey: string) => {
     const prefixedHex = publicKey.startsWith('0x') ? publicKey : '0x' + publicKey;
